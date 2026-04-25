@@ -333,4 +333,4 @@ waypoint payloads appear to use signed tenths of a degree internally.
 - BLE discovery is not implemented yet; pass the device address explicitly when
   the default address is not correct.
 - The project is repo-local for now. Run from `python/` or set
-  `PYTHONPATH=/mnt/NAS2/joe/git/dji_rs3_control/python`.
+  `PYTHONPATH=/path_to_project_dir/dji_rs3_control/python`.
