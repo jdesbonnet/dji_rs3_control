@@ -56,6 +56,11 @@ class ProbeOptions:
     track_mode: int
     track_param0: int
     track_param1: int
+    raw_receiver: int
+    raw_cmd_type: int
+    raw_cmd_set: int | None
+    raw_cmd_id: int | None
+    raw_payload: bytes
     dry_run: bool
 
 
@@ -113,7 +118,10 @@ def parse_probe_waypoint_text(text: str) -> tuple[int, int, int]:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Protocol-oriented RS3 BLE probing tool.")
-    parser.add_argument("direction", choices=["left", "right", "up", "down", "axis0", "axis1", "axis2", "recenter", "track"])
+    parser.add_argument(
+        "direction",
+        choices=["left", "right", "up", "down", "axis0", "axis1", "axis2", "recenter", "track", "raw"],
+    )
     parser.add_argument("--address", default=DEFAULT_ADDRESS)
     parser.add_argument("--delta", type=int, default=180, help="Signed joystick delta around the 1024 center point.")
     parser.add_argument("--duration", type=float, default=1.0)
@@ -138,6 +146,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--track-mode", type=lambda value: int(value, 0), default=0x0A)
     parser.add_argument("--track-param0", type=int, default=20)
     parser.add_argument("--track-param1", type=int, default=20)
+    parser.add_argument("--raw-receiver", type=lambda value: int(value, 0), default=0x04)
+    parser.add_argument("--raw-type", type=lambda value: int(value, 0), default=0x40)
+    parser.add_argument("--raw-set", type=lambda value: int(value, 0), help="Raw DUML command set, for example 0x04.")
+    parser.add_argument("--raw-id", type=lambda value: int(value, 0), help="Raw DUML command id, for example 0x0f.")
+    parser.add_argument("--raw-payload", default="", help="Raw DUML payload as hex, for example 230101.")
     parser.add_argument("--dry-run", action="store_true")
     return parser
 
@@ -150,6 +163,13 @@ def parse_args(argv: list[str] | None = None) -> ProbeOptions:
         raise SystemExit("--duration must be non-negative")
     if args.direction == "track" and not args.waypoint:
         raise SystemExit("track action requires at least one --waypoint")
+    if args.direction == "raw" and (args.raw_set is None or args.raw_id is None):
+        raise SystemExit("raw action requires --raw-set and --raw-id")
+    try:
+        raw_payload = bytes.fromhex(args.raw_payload)
+    except ValueError as exc:
+        raise SystemExit("--raw-payload must be valid hex") from exc
+
     return ProbeOptions(
         direction=args.direction,
         address=args.address,
@@ -169,6 +189,11 @@ def parse_args(argv: list[str] | None = None) -> ProbeOptions:
         track_mode=args.track_mode,
         track_param0=args.track_param0,
         track_param1=args.track_param1,
+        raw_receiver=args.raw_receiver,
+        raw_cmd_type=args.raw_type,
+        raw_cmd_set=args.raw_set,
+        raw_cmd_id=args.raw_id,
+        raw_payload=raw_payload,
         dry_run=args.dry_run,
     )
 
@@ -271,6 +296,22 @@ async def run_sequence(controller: ProbeController, options: ProbeOptions, stop_
         )
         controller.sequence += 1
         await controller.write_frame(frame, "track")
+        deadline = monotonic() + options.duration
+        while monotonic() < deadline and not stop_event.is_set():
+            await asyncio.sleep(interval)
+    elif options.direction == "raw":
+        assert options.raw_cmd_set is not None
+        assert options.raw_cmd_id is not None
+        await controller.send_command(
+            Command(
+                options.raw_receiver,
+                options.raw_cmd_type,
+                options.raw_cmd_set,
+                options.raw_cmd_id,
+                options.raw_payload,
+            ),
+            "raw",
+        )
         deadline = monotonic() + options.duration
         while monotonic() < deadline and not stop_event.is_set():
             await asyncio.sleep(interval)

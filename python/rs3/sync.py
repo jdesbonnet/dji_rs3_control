@@ -37,6 +37,12 @@ class RS3:
     def recenter(self) -> None:
         self._run(lambda client: client.recenter())
 
+    def sleep(self) -> None:
+        self._run(lambda client: client.sleep())
+
+    def wake(self) -> None:
+        self._run(lambda client: client.wake())
+
     def move_velocity(self, command: VelocityCommand) -> None:
         self._run(lambda client: client.move_velocity(command))
 

@@ -27,6 +27,12 @@ def build_parser() -> argparse.ArgumentParser:
     recenter = subparsers.add_parser("recenter", help="Command the gimbal to return to zero pose.")
     recenter.add_argument("--settle", type=float, default=3.0, help="How long to remain connected after issuing the command.")
 
+    sleep = subparsers.add_parser("sleep", help="Command the gimbal to enter sleep mode.")
+    sleep.add_argument("--settle", type=float, default=3.0, help="How long to remain connected after issuing the command.")
+
+    wake = subparsers.add_parser("wake", help="Command the gimbal to wake from sleep mode.")
+    wake.add_argument("--settle", type=float, default=3.0, help="How long to remain connected after issuing the command.")
+
     move = subparsers.add_parser("move", help="Send semantic velocity commands using joystick-style control.")
     move.add_argument("--tilt", type=float, default=0.0, help="Tilt joystick delta around center.")
     move.add_argument("--roll", type=float, default=0.0, help="Roll joystick delta around center.")
@@ -79,6 +85,16 @@ async def run_cli(args: argparse.Namespace) -> None:
 
         if args.command == "recenter":
             await client.recenter()
+            await asyncio.sleep(max(0.0, args.settle))
+            return
+
+        if args.command == "sleep":
+            await client.sleep()
+            await asyncio.sleep(max(0.0, args.settle))
+            return
+
+        if args.command == "wake":
+            await client.wake()
             await asyncio.sleep(max(0.0, args.settle))
             return
 

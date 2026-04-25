@@ -9,8 +9,10 @@ from .commands import (
     build_command_frame,
     build_keepalive_0410_frame,
     build_recenter_frame,
+    build_sleep_frame,
     build_track_frame,
     build_velocity_frame,
+    build_wake_frame,
     parse_waypoint_text,
 )
 from .duml import build_frame, build_joystick_frame, parse_frame
@@ -27,8 +29,10 @@ __all__ = [
     "build_joystick_frame",
     "build_keepalive_0410_frame",
     "build_recenter_frame",
+    "build_sleep_frame",
     "build_track_frame",
     "build_velocity_frame",
+    "build_wake_frame",
     "decode_0466_fields",
     "decode_0d02_fields",
     "iter_embedded_frames",

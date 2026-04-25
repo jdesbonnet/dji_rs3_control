@@ -67,6 +67,13 @@ Recenter the gimbal:
 python3 -m rs3.cli.ctl recenter
 ```
 
+Put the gimbal to sleep or wake it:
+
+```bash
+python3 -m rs3.cli.ctl sleep
+python3 -m rs3.cli.ctl wake
+```
+
 Send joystick-style velocity control:
 
 ```bash
@@ -271,6 +278,8 @@ Important async methods:
 - `move_velocity(VelocityCommand(...))`
 - `stop_motion()`
 - `recenter()`
+- `sleep()`
+- `wake()`
 - `go_to(Pose(...), method="track")`
 - `run_track([Waypoint(...), ...])`
 - `stream_telemetry(seconds=None)`
@@ -297,6 +306,8 @@ from rs3 import Pose, RS3, VelocityCommand
 
 
 gimbal = RS3("48:1C:B9:DC:8B:99", log_callback=print)
+gimbal.sleep()
+gimbal.wake()
 gimbal.move_velocity(VelocityCommand(pan=-80))
 gimbal.go_to(Pose(tilt_deg=0.0, roll_deg=0.0, pan_deg=0.0))
 ```

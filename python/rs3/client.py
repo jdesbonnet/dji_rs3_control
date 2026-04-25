@@ -16,8 +16,10 @@ from .protocol import (
     Command,
     build_keepalive_0410_frame,
     build_recenter_frame,
+    build_sleep_frame,
     build_track_frame,
     build_velocity_frame,
+    build_wake_frame,
     decode_0466_fields,
     decode_0d02_fields,
     iter_embedded_frames,
@@ -111,6 +113,14 @@ class RS3Client:
     async def recenter(self) -> None:
         frame = build_recenter_frame(sequence=self._next_sequence())
         await self.write_frame(frame, label="recenter")
+
+    async def sleep(self) -> None:
+        frame = build_sleep_frame(sequence=self._next_sequence())
+        await self.write_frame(frame, label="sleep")
+
+    async def wake(self) -> None:
+        frame = build_wake_frame(sequence=self._next_sequence())
+        await self.write_frame(frame, label="wake")
 
     async def go_to(
         self,

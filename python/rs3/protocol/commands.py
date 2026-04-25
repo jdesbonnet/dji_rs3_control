@@ -128,6 +128,30 @@ def build_keepalive_0410_frame(*, sequence: int) -> bytes:
     )
 
 
+def build_sleep_frame(*, sequence: int) -> bytes:
+    return build_frame(
+        sender=0x02,
+        receiver=0x04,
+        sequence=sequence,
+        cmd_type=0x40,
+        cmd_set=0x04,
+        cmd_id=0x0F,
+        payload=bytes.fromhex("230101"),
+    )
+
+
+def build_wake_frame(*, sequence: int) -> bytes:
+    return build_frame(
+        sender=0x02,
+        receiver=0x04,
+        sequence=sequence,
+        cmd_type=0x40,
+        cmd_set=0x04,
+        cmd_id=0x0F,
+        payload=bytes.fromhex("230100"),
+    )
+
+
 def build_track_payload(
     waypoints_deg: list[tuple[float, float, float]],
     *,
