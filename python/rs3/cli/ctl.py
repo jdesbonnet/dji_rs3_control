@@ -1,0 +1,142 @@
+"""Thin CLI wrapper over the reusable RS3 library."""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+from pathlib import Path
+
+from ..client import FileLogger, RS3Client, install_signal_stop_handler
+from ..models import Pose, VelocityCommand, Waypoint
+from ..protocol.commands import parse_waypoint_text
+
+
+DEFAULT_ADDRESS = "48:1C:B9:DC:8B:99"
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Control a DJI RS3 gimbal over BLE.")
+    parser.add_argument("--address", default=DEFAULT_ADDRESS, help="BLE device identifier or address.")
+    parser.add_argument("--timeout", type=float, default=15.0, help="BLE connection timeout in seconds.")
+    parser.add_argument("--log", type=Path, help="Append terminal output to this file.")
+
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    telemetry = subparsers.add_parser("telemetry", help="Subscribe and print live telemetry.")
+    telemetry.add_argument("--seconds", type=float, default=0.0, help="Optional capture duration; 0 means until interrupted.")
+
+    recenter = subparsers.add_parser("recenter", help="Command the gimbal to return to zero pose.")
+    recenter.add_argument("--settle", type=float, default=3.0, help="How long to remain connected after issuing the command.")
+
+    move = subparsers.add_parser("move", help="Send semantic velocity commands using joystick-style control.")
+    move.add_argument("--tilt", type=float, default=0.0, help="Tilt joystick delta around center.")
+    move.add_argument("--roll", type=float, default=0.0, help="Roll joystick delta around center.")
+    move.add_argument("--pan", type=float, default=0.0, help="Pan joystick delta around center.")
+    move.add_argument("--seconds", type=float, default=1.0, help="How long to hold the command.")
+    move.add_argument("--rate", type=float, default=5.0, help="Command rate in Hz.")
+    move.add_argument("--pre-neutral", type=int, default=3, help="Neutral frames before the motion burst.")
+    move.add_argument("--post-neutral", type=int, default=5, help="Neutral frames after the motion burst.")
+
+    goto = subparsers.add_parser("goto", help="Move to an absolute pose using the best available method.")
+    goto.add_argument("--tilt", type=float, required=True, help="Target tilt in degrees.")
+    goto.add_argument("--roll", type=float, default=0.0, help="Target roll in degrees.")
+    goto.add_argument("--pan", type=float, required=True, help="Target pan in degrees.")
+    goto.add_argument("--method", default="track", choices=["track"], help="Absolute move strategy.")
+    goto.add_argument("--duration", type=float, default=5.0, help="How long to remain connected after issuing the command.")
+    goto.add_argument("--track-mode", type=lambda value: int(value, 0), default=0x0A)
+    goto.add_argument("--track-param0", type=int, default=20)
+    goto.add_argument("--track-param1", type=int, default=20)
+
+    track = subparsers.add_parser("track", help="Send a multi-waypoint track program.")
+    track.add_argument(
+        "--waypoint",
+        action="append",
+        type=parse_waypoint_text,
+        default=[],
+        metavar="TILT,PAN",
+        help="Waypoint in degrees. Also accepts TILT,ROLL,PAN. Repeat for multiple waypoints.",
+    )
+    track.add_argument("--duration", type=float, default=8.0, help="How long to remain connected after issuing the command.")
+    track.add_argument("--track-mode", type=lambda value: int(value, 0), default=0x0A)
+    track.add_argument("--track-param0", type=int, default=20)
+    track.add_argument("--track-param1", type=int, default=20)
+    return parser
+
+
+async def run_cli(args: argparse.Namespace) -> None:
+    logger = FileLogger(args.log)
+    stop_event = asyncio.Event()
+    install_signal_stop_handler(stop_event)
+    client = RS3Client(args.address, timeout=args.timeout, log_callback=logger.emit)
+
+    try:
+        await client.connect()
+        if args.command == "telemetry":
+            if args.seconds == 0:
+                await stop_event.wait()
+            else:
+                await client.stream_telemetry(seconds=args.seconds)
+            return
+
+        if args.command == "recenter":
+            await client.recenter()
+            await asyncio.sleep(max(0.0, args.settle))
+            return
+
+        if args.command == "move":
+            if args.rate <= 0:
+                raise SystemExit("--rate must be positive")
+            interval = 1.0 / args.rate
+            neutral = VelocityCommand()
+            command = VelocityCommand(tilt=args.tilt, roll=args.roll, pan=args.pan)
+            for _ in range(args.pre_neutral):
+                await client.move_velocity(neutral, label="neutral-pre")
+                await asyncio.sleep(interval)
+            deadline = asyncio.get_running_loop().time() + max(0.0, args.seconds)
+            while asyncio.get_running_loop().time() < deadline and not stop_event.is_set():
+                await client.move_velocity(command, label="move")
+                await asyncio.sleep(interval)
+            for _ in range(args.post_neutral):
+                await client.move_velocity(neutral, label="neutral-post")
+                await asyncio.sleep(interval)
+            return
+
+        if args.command == "goto":
+            await client.go_to(
+                Pose(tilt_deg=args.tilt, roll_deg=args.roll, pan_deg=args.pan),
+                method=args.method,
+                duration=args.duration,
+                track_mode=args.track_mode,
+                track_param0=args.track_param0,
+                track_param1=args.track_param1,
+            )
+            return
+
+        if args.command == "track":
+            if not args.waypoint:
+                raise SystemExit("track requires at least one --waypoint")
+            await client.run_track(
+                [Waypoint(tilt_deg=tilt, roll_deg=roll, pan_deg=pan) for tilt, roll, pan in args.waypoint],
+                duration=args.duration,
+                track_mode=args.track_mode,
+                track_param0=args.track_param0,
+                track_param1=args.track_param1,
+            )
+            return
+
+        raise SystemExit(f"unsupported command: {args.command}")
+    finally:
+        await client.disconnect()
+        logger.close()
+
+
+def main() -> None:
+    parser = build_parser()
+    args = parser.parse_args()
+    asyncio.run(run_cli(args))
+
+
+__all__ = ["build_parser", "main", "run_cli"]
+
+
+if __name__ == "__main__":
+    main()
