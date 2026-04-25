@@ -269,7 +269,40 @@ axis2 = 0
 
 This command is a high-level zero-position command. It does not currently establish the format for arbitrary absolute angle targets.
 
-### 6.2 Gimbal Control Keepalive `[SPECULATIVE]`
+### 6.2 Sleep/Wake Command
+
+Sleep/wake is controlled with command set `0x04`, command id `0x0f`:
+
+```text
+sender     0x02
+receiver   0x04
+cmd_type   0x40
+cmd_set    0x04
+cmd_id     0x0f
+```
+
+Payload:
+
+```text
+23 01 01    enter sleep
+23 01 00    wake / leave sleep
+```
+
+Live replay confirms:
+
+```text
+230101 -> gimbal sleeps
+230100 -> gimbal wakes
+```
+
+The gimbal also reports sleep state through status notification `0x04/0x27`:
+
+```text
+0000000001    asleep
+0000000000    awake
+```
+
+### 6.3 Gimbal Control Keepalive `[SPECULATIVE]`
 
 The following command may act as a control keepalive or control-authority request:
 
@@ -295,7 +328,7 @@ payload    00120100
 
 The required cadence and exact semantics of this command are `[SPECULATIVE]`.
 
-### 6.3 Status Poll Command `[SPECULATIVE]`
+### 6.4 Status Poll Command `[SPECULATIVE]`
 
 The telemetry/status endpoint accepts command set `0x04`, command id `0x12`:
 
@@ -317,7 +350,7 @@ Known payload forms include:
 
 This command appears to request or configure status reporting. It is not required for basic passive notification reception. Its side effects are `[SPECULATIVE]`.
 
-### 6.4 Panorama Program Command `[SPECULATIVE]`
+### 6.5 Panorama Program Command `[SPECULATIVE]`
 
 The panorama program command starts an autonomous multi-position panorama movement:
 
@@ -573,6 +606,8 @@ send neutral joystick frame
 ```text
 cmd_set  cmd_id  sender  receiver  description
 0x04     0x01    0x02    0x04      joystick control
+0x04     0x0f    0x02    0x04      sleep/wake control
+0x04     0x27    0x04    0x02      sleep status notification
 0x04     0x4c    0x02    0x04      recenter to zero pose
 0x04     0x62    0x02    0x04      [SPECULATIVE] track waypoint program
 0x04     0x63    0x02    0x04      [SPECULATIVE] panorama program start
