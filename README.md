@@ -9,3 +9,5 @@ When reverse engineering the protocol the device firmware is version ? and the D
 
 This protocol may apply to other DJI gimbals but since I only have a RS3 I cannot verify. 
 
+ * [DJI RS3 BLE protocol documentation](./rs3_ble_protocol_spec.md)
+ * [DJI RS3 python control library](./python/README.md)
