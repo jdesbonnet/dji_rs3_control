@@ -75,10 +75,24 @@ python3 -m rs3.cli.ctl move --tilt 60 --seconds 1.0
 python3 -m rs3.cli.ctl move --roll -40 --seconds 1.0
 ```
 
-The `move` command values are joystick deflection units around the neutral
-center, not degrees per second. Larger absolute values command faster motion.
-The command is streamed at `--rate`, defaulting to `5 Hz`, and neutral frames
-are sent before and after motion.
+`move` is a velocity-style command. It does not mean "move to this angle".
+It means "hold a virtual joystick away from center for this long".
+
+The axis values, such as `--pan -80`, are joystick deflection units:
+
+- `0` means neutral, no commanded motion on that axis
+- larger absolute values command faster motion
+- the sign chooses direction
+- values are not degrees, and are not degrees per second
+
+`--seconds` controls how long the non-neutral command is held. For example,
+`--seconds 1.0` sends movement frames for about one second, then sends neutral
+frames to stop.
+
+`--rate` controls how often movement frames are sent while the command is held.
+The default is `5 Hz`, which matches the observed app behavior. Treat `--rate`
+as protocol cadence rather than speed control; use larger or smaller axis
+values to change speed.
 
 Move to an absolute pose using the native track command:
 
@@ -131,6 +145,46 @@ Try the opposite direction:
 ```bash
 python3 -m rs3.cli.probe axis2 --delta -80 --duration 1.0 --telemetry
 ```
+
+For probe joystick commands, `--delta` is the raw joystick offset from the
+neutral value of `1024`.
+
+For raw axes:
+
+```text
+axis0 value = 1024 - delta
+axis1 value = 1024 - delta
+axis2 value = 1024 - delta
+```
+
+So:
+
+```bash
+python3 -m rs3.cli.probe axis2 --delta 80
+```
+
+sends `axis2 = 944`, while:
+
+```bash
+python3 -m rs3.cli.probe axis2 --delta -80
+```
+
+sends `axis2 = 1104`.
+
+For named directions, `--delta` is applied according to the direction name:
+
+```text
+left  -> axis2 below 1024
+right -> axis2 above 1024
+up    -> axis0 above 1024
+down  -> axis0 below 1024
+```
+
+`--duration` is the probe equivalent of `--seconds` in the normal CLI. It is how
+long the movement or command wait period lasts, in seconds. For joystick
+commands, the script sends non-neutral frames for `--duration`, then sends
+neutral frames to stop. For `recenter` and `track`, the command is sent once and
+the script remains connected for `--duration` so telemetry can be observed.
 
 Raw axis mapping:
 
@@ -280,4 +334,3 @@ waypoint payloads appear to use signed tenths of a degree internally.
   the default address is not correct.
 - The project is repo-local for now. Run from `python/` or set
   `PYTHONPATH=/mnt/NAS2/joe/git/dji_rs3_control/python`.
-
