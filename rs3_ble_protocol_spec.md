@@ -631,3 +631,7 @@ The following protocol details remain `[SPECULATIVE]`:
 - the exact field layout of telemetry frame `0x04/0x66`
 - the full meaning of `cmd_type`
 - the roles of secondary endpoint IDs
+
+## 11. References
+
+- [DJI Wi-Fi Protocol Reverse Engineering, Master Thesis Thomas Christof, 2021](https://www.digidow.eu/publications/2021-christof-masterthesis/Christof_2021_MasterThesis_DJIProtocolReverseEngineering.pdf)
