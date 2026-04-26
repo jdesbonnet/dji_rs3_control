@@ -1,11 +1,13 @@
 # DJI RS 3 BLE Control Protocol
 
 Author: Joe Desbonnet (with aid of gpt-5.4 and gpt-5.5 models)
-Date:   2026-04-25
+
+Last edit:   2026-04-26
 
 ## 1. Overview
 
-The DJI RS 3 BLE control protocol transports DJI DUML frames over a Bluetooth Low Energy GATT service. Clients write command frames to the control characteristic and receive responses or telemetry from the notification characteristic.
+The DJI RS 3 BLE control protocol transports [DUML (DJI Universal Markup Lanaguage)](https://www.darknavy.org/blog/fatal_vulnerabilities_compromising_dji_control_devices/#duml-protocol) 
+frames over a Bluetooth Low Energy GATT service. Clients write command frames to the control characteristic and receive responses or telemetry from the notification characteristic.
 
 Fields, commands, or semantics marked `[SPECULATIVE]` are not fully characterized and should be treated as unstable until validated against the target firmware.
 
