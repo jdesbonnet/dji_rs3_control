@@ -70,6 +70,13 @@ python3 -m rs3.cli.ctl state --watch --seconds 10
 python3 -m rs3.cli.ctl state --raw
 ```
 
+For more reliable continuous watch behavior, this runtime profile has been
+validated in live testing:
+
+```bash
+python3 -m rs3.cli.ctl state --watch --seconds 20 --timeout 8 --poll-interval 0.5
+```
+
 `state` actively sends app-style telemetry poll requests by default and waits
 for a fresh pose sample. Use `--passive` to subscribe without sending telemetry
 polls:
