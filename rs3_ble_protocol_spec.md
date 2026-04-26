@@ -553,16 +553,16 @@ tag   size  meaning
 0x0a  1     unknown
 0x0b  1     unknown
 0x0c  1     unknown
-0x22  2     [SPECULATIVE] axis0 pose candidate
-0x23  2     [SPECULATIVE] axis1 pose candidate
-0x24  2     axis2 pan pose, signed tenths of a degree
+0x22  2     axis0 tilt pose, signed tenths of a degree
+0x23  2     axis1 roll pose, signed tenths of a degree
+0x24  2     axis2  pan pose, signed tenths of a degree
 ```
 
-The `0x22`, `0x23`, and `0x24` fields change coherently during one-axis joystick motion and are the best current candidates for gimbal pose feedback. Their units, scale, wrap behavior, and zero reference are `[SPECULATIVE]`.
+The `0x22`, `0x23`, and `0x24` fields change coherently during one-axis joystick motion and are the best current candidates for gimbal pose feedback.
 
-For pan/yaw, tag `0x24` ranges approximately from `-1800` to `+1800` over a full rotation. This indicates a scale of `0.1 degrees` per unit, with wrap at approximately `+/-180 degrees`.
+For pan/yaw, tag `0x24` ranges from `-1800` to `+1800` over a full rotation (TODO: one of those values can't be inclusive because -180 is the same angle as +180). This indicates a scale of `0.1 degrees` per unit, with wrap at `+/-180 degrees`.
 
-The same `0.1 degrees` scale may also apply to tag `0x22` and tag `0x23`, but that is `[SPECULATIVE]` until tilt and roll are checked against known physical angles.
+The same `0.1 degrees` scale is believed to also apply to tag `0x22` and tag `0x23`. Unlike the pan gimbal, roll and tilt gimbals have a limited range of rotation.
 
 ## 8. Recommended Client Behavior
 
