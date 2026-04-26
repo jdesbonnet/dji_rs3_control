@@ -519,7 +519,7 @@ f3      s32le
 tail    bytes
 ```
 
-The exact meaning of `f0..f3` is `[SPECULATIVE]`. The fields change with device state and motion. `f3` may represent battery state of charge, voltage, or another power-related value.
+`f0..f2` is believed to be the balancing current being consumed by axis0..2 gimbals. A well balanced gimbal will minimize these values.  `f3` is battery state of charge with 100% charge as indicated by the device LCD display to be 2702.
 
 ### 7.3 Status Frame `0x04 / 0x66`
 
