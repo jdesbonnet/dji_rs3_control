@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from time import monotonic
+
 from ..models import Pose, TelemetrySnapshot
 from .duml import parse_frame
 
@@ -61,6 +63,7 @@ def telemetry_from_frame(frame: bytes, previous: TelemetrySnapshot | None = None
 
     current = previous or TelemetrySnapshot()
     pose = current.pose
+    pose_timestamp = current.pose_timestamp
     battery = current.battery_or_status
     raw_0d02 = current.raw_0d02
     raw_0466 = dict(current.raw_0466)
@@ -82,11 +85,13 @@ def telemetry_from_frame(frame: bytes, previous: TelemetrySnapshot | None = None
                 roll_deg=fields[0x23] / 10.0,
                 pan_deg=fields[0x24] / 10.0,
             )
+            pose_timestamp = monotonic()
     else:
         return None
 
     return TelemetrySnapshot(
         pose=pose,
+        pose_timestamp=pose_timestamp,
         battery_or_status=battery,
         raw_0d02=raw_0d02,
         raw_0466=raw_0466,

@@ -68,10 +68,14 @@ class RS3Client:
         self.emit(f"{self.elapsed():8.3f}s subscribed {self.transport.NOTIFY_CHAR}")
 
     async def disconnect(self) -> None:
+        await self.disconnect_with_options(stop_motion=True)
+
+    async def disconnect_with_options(self, *, stop_motion: bool = True) -> None:
         if not self.transport.is_connected:
             return
         try:
-            await self.stop_motion()
+            if stop_motion:
+                await self.stop_motion()
         finally:
             try:
                 await self.transport.stop_notifications()
@@ -89,6 +93,39 @@ class RS3Client:
         payload = APP_POLL_PAYLOADS[min(payload_index, len(APP_POLL_PAYLOADS) - 1)]
         command = Command(0xE5, 0x00, 0x04, 0x12, payload)
         await self.send_command(command, label="poll-0412")
+
+    async def request_state(
+        self,
+        *,
+        active: bool = True,
+        timeout: float = 3.0,
+        poll_interval: float = 1.0,
+    ) -> TelemetrySnapshot:
+        """Return a fresh state snapshot, actively polling if requested."""
+
+        if timeout < 0:
+            raise ValueError("timeout must be non-negative")
+        if poll_interval <= 0:
+            raise ValueError("poll_interval must be positive")
+
+        started = monotonic()
+        deadline = started + timeout
+        poll_index = 0
+
+        while monotonic() <= deadline:
+            if self.telemetry.pose is not None and (self.telemetry.pose_timestamp or 0.0) >= started:
+                return self.telemetry
+
+            if active:
+                await self.poll_once(poll_index)
+                poll_index += 1
+
+            remaining = deadline - monotonic()
+            if remaining <= 0:
+                break
+            await asyncio.sleep(min(poll_interval, remaining, 0.25 if not active else poll_interval))
+
+        raise TimeoutError("timed out waiting for fresh pose telemetry")
 
     async def keepalive_0410(self) -> None:
         frame = build_keepalive_0410_frame(sequence=self._next_sequence())

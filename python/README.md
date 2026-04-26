@@ -61,6 +61,29 @@ python3 -m rs3.cli.ctl telemetry
 python3 -m rs3.cli.ctl telemetry --seconds 10
 ```
 
+Request current decoded gimbal state, including pose angles when available:
+
+```bash
+python3 -m rs3.cli.ctl state
+python3 -m rs3.cli.ctl state --watch
+python3 -m rs3.cli.ctl state --watch --seconds 10
+python3 -m rs3.cli.ctl state --raw
+```
+
+`state` actively sends app-style telemetry poll requests by default and waits
+for a fresh pose sample. Use `--passive` to subscribe without sending telemetry
+polls:
+
+```bash
+python3 -m rs3.cli.ctl state --passive
+```
+
+The normal state output uses degrees:
+
+```text
+state tilt=0.0 roll=0.0 pan=-42.3 age=0.03s
+```
+
 Recenter the gimbal:
 
 ```bash
@@ -280,6 +303,7 @@ Important async methods:
 - `recenter()`
 - `sleep()`
 - `wake()`
+- `request_state(active=True, timeout=3.0, poll_interval=1.0)`
 - `go_to(Pose(...), method="track")`
 - `run_track([Waypoint(...), ...])`
 - `stream_telemetry(seconds=None)`
@@ -306,6 +330,7 @@ from rs3 import Pose, RS3, VelocityCommand
 
 
 gimbal = RS3("48:1C:B9:DC:8B:99", log_callback=print)
+state = gimbal.request_state()
 gimbal.sleep()
 gimbal.wake()
 gimbal.move_velocity(VelocityCommand(pan=-80))

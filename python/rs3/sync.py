@@ -7,7 +7,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from .client import RS3Client
-from .models import Pose, VelocityCommand, Waypoint
+from .models import Pose, TelemetrySnapshot, VelocityCommand, Waypoint
 
 
 class RS3:
@@ -42,6 +42,9 @@ class RS3:
 
     def wake(self) -> None:
         self._run(lambda client: client.wake())
+
+    def request_state(self, **kwargs: object) -> TelemetrySnapshot:
+        return self._run(lambda client: client.request_state(**kwargs))
 
     def move_velocity(self, command: VelocityCommand) -> None:
         self._run(lambda client: client.move_velocity(command))

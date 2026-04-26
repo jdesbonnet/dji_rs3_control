@@ -39,6 +39,7 @@ class TelemetrySnapshot:
     """Latest decoded telemetry."""
 
     pose: Pose | None = None
+    pose_timestamp: float | None = None
     battery_or_status: float | None = None
     raw_0d02: tuple[int, int, int, int] | None = None
     raw_0466: dict[int, int] = field(default_factory=dict)
