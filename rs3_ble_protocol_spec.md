@@ -250,7 +250,7 @@ The roll examples use `+/-125` from neutral. They are representative payloads, n
 
 ### 6.1 Recenter Command
 
-The recenter command moves the gimbal pose back to zero on the controlled axes:
+The recenter command moves the gimbal pose back to zero degrees on all three axes:
 
 ```text
 sender     0x02
@@ -260,16 +260,6 @@ cmd_set    0x04
 cmd_id     0x4c
 payload    fe01
 ```
-
-During recenter motion, telemetry frame `0x04/0x66` reports the pose candidate fields converging to:
-
-```text
-axis0 = 0
-axis1 = 0
-axis2 = 0
-```
-
-This command is a high-level zero-position command. It does not currently establish the format for arbitrary absolute angle targets.
 
 ### 6.2 Sleep/Wake Command
 
@@ -290,14 +280,7 @@ Payload:
 23 01 00    wake / leave sleep
 ```
 
-Live replay confirms:
-
-```text
-230101 -> gimbal sleeps
-230100 -> gimbal wakes
-```
-
-The gimbal also reports sleep state through status notification `0x04/0x27`:
+The gimbal can report sleep state through status notification `0x04/0x27`:
 
 ```text
 0000000001    asleep
