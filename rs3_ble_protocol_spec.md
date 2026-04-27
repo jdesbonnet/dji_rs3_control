@@ -117,7 +117,7 @@ The following endpoint IDs are used by the control protocol:
 0xe5   telemetry/status endpoint
 ```
 
-Additional subsystem endpoint IDs include:
+Additional subsystem endpoint IDs whos function is unknown include:
 
 ```text
 0x0b
@@ -127,8 +127,6 @@ Additional subsystem endpoint IDs include:
 0x44
 0xbf
 ```
-
-The exact subsystem assignment for these additional endpoint IDs is `[SPECULATIVE]`.
 
 ### 4.2 Command Type
 
@@ -162,53 +160,14 @@ The joystick payload is 9 bytes:
 
 ```text
 offset  size  type   field
-0       2     u16le  axis0
-2       2     u16le  axis1
-4       2     u16le  axis2
-6       2     u16le  flags
-8       1     u8     mode
+0       2     u16le  axis0 (tilt / pitch)
+2       2     u16le  axis1 (roll)
+4       2     u16le  axis2 (pan / yaw)
+6       2     u16le  flags (set to 0, function unknown)
+8       1     u8     mode  (set to 2 in snoop logs, function unknown)
 ```
 
 The neutral axis value is `1024` (`0x0400`). Values below neutral move one direction; values above neutral move the opposite direction.
-
-Neutral payload:
-
-```text
-000400040004000002
-```
-
-Decoded:
-
-```text
-axis0 = 1024
-axis1 = 1024
-axis2 = 1024
-flags = 0
-mode  = 2
-```
-
-### 5.3 Axis Mapping
-
-The joystick axes are:
-
-```text
-axis0   tilt / pitch
-axis1   roll
-axis2   pan / yaw
-```
-
-Direction mapping:
-
-```text
-axis0 > 1024   tilt up
-axis0 < 1024   tilt down
-axis1 > 1024   roll positive direction
-axis1 < 1024   roll negative direction
-axis2 > 1024   pan right
-axis2 < 1024   pan left
-```
-
-The physical meaning of positive and negative roll direction depends on the gimbal orientation and mounted camera frame of reference.
 
 ### 5.4 Command Cadence
 
