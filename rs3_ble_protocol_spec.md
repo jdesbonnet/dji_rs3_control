@@ -75,13 +75,10 @@ end-2   2     frame_crc16, little-endian
 
 Horizontal byte map, where `N` is the total frame length:
 
-```text
-byte:   0        1              2                   3          4        5          6..7        8          9        10       11..N-3      N-2..N-1
-        +--------+--------------+-------------------+----------+--------+----------+-----------+----------+--------+--------+------------+-----------+
-field:  | start  | length_lo    | version_len_hi    | crc8     | sender | receiver | sequence  | cmd_type | cmd_set| cmd_id | payload    | crc16     |
-value:  | 0x55   | len[7:0]     | ver + len[9:8]    | header   | u8     | u8       | u16le     | u8       | u8     | u8     | variable   | u16le     |
-        +--------+--------------+-------------------+----------+--------+----------+-----------+----------+--------+--------+------------+-----------+
-```
+| Byte(s) | 0 | 1 | 2 | 3 | 4 | 5 | 6..7 | 8 | 9 | 10 | 11..N-3 | N-2..N-1 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Field | start | length_lo | version_len_hi | header_crc8 | sender | receiver | sequence | cmd_type | cmd_set | cmd_id | payload | frame_crc16 |
+| Encoding/value | `0x55` | `len[7:0]` | `ver + len[9:8]` | header CRC | `u8` | `u8` | `u16le` | `u8` | `u8` | `u8` | variable | `u16le` |
 
 The total frame length includes the header, payload, and trailing CRC16.
 
