@@ -62,6 +62,10 @@ def degrees_to_tenths(angle_deg: float) -> int:
     return int(round(angle_deg * 10.0))
 
 
+def degrees_per_second_to_tenths(rate_deg_s: float) -> int:
+    return int(round(rate_deg_s * 10.0))
+
+
 def axis_values_for_direction(direction: str, delta: int) -> tuple[int, int, int]:
     axis0 = axis1 = axis2 = CENTER
     if direction == "left":
@@ -149,6 +153,49 @@ def build_wake_frame(*, sequence: int) -> bytes:
         cmd_set=0x04,
         cmd_id=0x0F,
         payload=bytes.fromhex("230100"),
+    )
+
+
+def build_native_rate_payload(
+    *,
+    tilt_deg_s: float,
+    roll_deg_s: float,
+    pan_deg_s: float,
+    control_flags: int = 0x80,
+) -> bytes:
+    if not 0 <= control_flags <= 0xFF:
+        raise ValueError("control flags must fit in one byte")
+    return b"".join(
+        [
+            int16_bytes(degrees_per_second_to_tenths(pan_deg_s)),
+            int16_bytes(degrees_per_second_to_tenths(roll_deg_s)),
+            int16_bytes(degrees_per_second_to_tenths(tilt_deg_s)),
+            bytes([control_flags]),
+        ]
+    )
+
+
+def build_native_rate_frame(
+    *,
+    sequence: int,
+    tilt_deg_s: float = 0.0,
+    roll_deg_s: float = 0.0,
+    pan_deg_s: float = 0.0,
+    control_flags: int = 0x80,
+) -> bytes:
+    return build_frame(
+        sender=0x02,
+        receiver=0x04,
+        sequence=sequence,
+        cmd_type=0x40,
+        cmd_set=0x04,
+        cmd_id=0x0C,
+        payload=build_native_rate_payload(
+            tilt_deg_s=tilt_deg_s,
+            roll_deg_s=roll_deg_s,
+            pan_deg_s=pan_deg_s,
+            control_flags=control_flags,
+        ),
     )
 
 

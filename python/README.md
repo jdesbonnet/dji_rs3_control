@@ -131,6 +131,18 @@ The default is `5 Hz`, which matches the observed app behavior. Treat `--rate`
 as protocol cadence rather than speed control; use larger or smaller axis
 values to change speed.
 
+Send native angular-rate control:
+
+```bash
+python3 -m rs3.cli.ctl rate --pan 20 --seconds 0.7
+```
+
+`rate` uses the discovered `0x04/0x0c` native speed command. Values are degrees
+per second, not joystick units. Positive pan/yaw rates have been validated in
+live testing. Negative native rates are blocked by default until reverse
+direction semantics are validated; use `rs3.cli.probe raw` for protocol
+experiments outside the safe CLI path.
+
 Move to an absolute pose:
 
 ```bash
@@ -309,7 +321,7 @@ testing protocol setup behavior.
 The public package is `rs3`.
 
 ```python
-from rs3 import Pose, RS3Client, VelocityCommand, Waypoint
+from rs3 import Pose, RateCommand, RS3Client, VelocityCommand, Waypoint
 ```
 
 ### Async API
@@ -319,7 +331,7 @@ Use `RS3Client` when integrating into an async application.
 ```python
 import asyncio
 
-from rs3 import Pose, RS3Client, VelocityCommand
+from rs3 import Pose, RateCommand, RS3Client, VelocityCommand
 
 
 async def main() -> None:
@@ -330,6 +342,7 @@ async def main() -> None:
         await asyncio.sleep(1.0)
         await client.stop_motion()
 
+        await client.move_rate(RateCommand(pan_deg_s=20.0), seconds=0.7)
         await client.go_to(Pose(tilt_deg=0.0, roll_deg=0.0, pan_deg=0.0))
     finally:
         await client.disconnect()
@@ -343,6 +356,7 @@ Important async methods:
 - `connect()`
 - `disconnect()`
 - `move_velocity(VelocityCommand(...))`
+- `move_rate(RateCommand(...), seconds=0.5)`
 - `stop_motion()`
 - `recenter()`
 - `sleep()`
@@ -370,7 +384,7 @@ Pose(tilt_deg=..., roll_deg=..., pan_deg=...)
 closes its own BLE session.
 
 ```python
-from rs3 import Pose, RS3, VelocityCommand
+from rs3 import Pose, RateCommand, RS3, VelocityCommand
 
 
 gimbal = RS3("48:1C:B9:DC:8B:99", log_callback=print)
@@ -378,6 +392,7 @@ state = gimbal.request_state()
 gimbal.sleep()
 gimbal.wake()
 gimbal.move_velocity(VelocityCommand(pan=-80))
+gimbal.move_rate(RateCommand(pan_deg_s=20.0), seconds=0.7)
 gimbal.go_to(Pose(tilt_deg=0.0, roll_deg=0.0, pan_deg=0.0))
 ```
 
@@ -403,13 +418,17 @@ axis2 = pan / yaw
 ```
 
 Angles exposed by the public API are degrees. The protocol telemetry,
-absolute-angle payloads, and waypoint payloads appear to use signed tenths of a
-degree internally.
+absolute-angle payloads, native speed payloads, and waypoint payloads appear to
+use signed tenths of a degree internally. Native speed payloads use tenths of a
+degree per second.
 
 ## Current Limitations
 
 - `move_velocity()` currently accepts joystick deflection units, not calibrated
   degrees per second.
+- `move_rate()` uses the `0x04/0x0c` native speed command. Positive pan/yaw has
+  been validated in live testing; negative/reverse direction, tilt, and roll
+  need more hardware testing.
 - `go_to()` uses the `0x04/0x14` absolute-angle command. Pan has been validated
   in live testing; tilt and roll follow the inferred payload layout and need
   more hardware testing.

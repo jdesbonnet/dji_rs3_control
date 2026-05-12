@@ -9,13 +9,14 @@ from pathlib import Path
 from time import monotonic
 from typing import TextIO
 
-from .models import Pose, TelemetrySnapshot, VelocityCommand, Waypoint
+from .models import Pose, RateCommand, TelemetrySnapshot, VelocityCommand, Waypoint
 from .protocol import (
     APP_INIT_COMMANDS,
     APP_POLL_PAYLOADS,
     Command,
     build_absolute_angle_frame,
     build_keepalive_0410_frame,
+    build_native_rate_frame,
     build_recenter_frame,
     build_sleep_frame,
     build_track_frame,
@@ -135,9 +136,22 @@ class RS3Client:
     async def stop_motion(self, repeats: int = 3, interval: float = 0.1) -> None:
         if not self.transport.is_connected:
             return
+        await self.stop_native_rate()
         for _ in range(repeats):
             await self.move_velocity(VelocityCommand(), label="neutral-stop")
             await asyncio.sleep(interval)
+
+    async def stop_native_rate(self) -> None:
+        if not self.transport.is_connected:
+            return
+        frame = build_native_rate_frame(
+            sequence=self._next_sequence(),
+            tilt_deg_s=0.0,
+            roll_deg_s=0.0,
+            pan_deg_s=0.0,
+            control_flags=0x00,
+        )
+        await self.write_frame(frame, label="rate-stop")
 
     async def move_velocity(self, command: VelocityCommand, *, label: str = "move") -> None:
         frame = build_velocity_frame(
@@ -147,6 +161,47 @@ class RS3Client:
             pan=int(round(command.pan)),
         )
         await self.write_frame(frame, label=label)
+
+    async def move_rate(
+        self,
+        command: RateCommand,
+        *,
+        seconds: float = 0.5,
+        rate: float = 5.0,
+        max_abs_speed_deg_s: float = 30.0,
+        allow_negative: bool = False,
+    ) -> None:
+        if seconds < 0:
+            raise ValueError("seconds must be non-negative")
+        if rate <= 0:
+            raise ValueError("rate must be positive")
+        if max_abs_speed_deg_s <= 0:
+            raise ValueError("max_abs_speed_deg_s must be positive")
+
+        speeds = (command.tilt_deg_s, command.roll_deg_s, command.pan_deg_s)
+        if not allow_negative and any(speed < 0 for speed in speeds):
+            raise ValueError("negative native rates are not validated yet; use allow_negative=True for protocol tests")
+        too_fast = [speed for speed in speeds if abs(speed) > max_abs_speed_deg_s]
+        if too_fast:
+            raise ValueError(f"native rate exceeds max_abs_speed_deg_s={max_abs_speed_deg_s}")
+
+        interval = 1.0 / rate
+        deadline = asyncio.get_running_loop().time() + seconds
+        try:
+            while asyncio.get_running_loop().time() < deadline:
+                frame = build_native_rate_frame(
+                    sequence=self._next_sequence(),
+                    tilt_deg_s=command.tilt_deg_s,
+                    roll_deg_s=command.roll_deg_s,
+                    pan_deg_s=command.pan_deg_s,
+                    control_flags=0x80,
+                )
+                await self.write_frame(frame, label="rate")
+                remaining = deadline - asyncio.get_running_loop().time()
+                if remaining > 0:
+                    await asyncio.sleep(min(interval, remaining))
+        finally:
+            await self.stop_native_rate()
 
     async def recenter(self) -> None:
         frame = build_recenter_frame(sequence=self._next_sequence())

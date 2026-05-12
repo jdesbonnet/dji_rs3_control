@@ -8,7 +8,7 @@ from pathlib import Path
 from time import monotonic
 
 from ..client import FileLogger, RS3Client, install_signal_stop_handler
-from ..models import TelemetrySnapshot, Pose, VelocityCommand, Waypoint
+from ..models import TelemetrySnapshot, Pose, RateCommand, VelocityCommand, Waypoint
 from ..protocol.commands import parse_waypoint_text
 from ..protocol.telemetry import format_0466_fields
 
@@ -52,6 +52,19 @@ def build_parser() -> argparse.ArgumentParser:
     move.add_argument("--rate", type=float, default=5.0, help="Command rate in Hz.")
     move.add_argument("--pre-neutral", type=int, default=3, help="Neutral frames before the motion burst.")
     move.add_argument("--post-neutral", type=int, default=5, help="Neutral frames after the motion burst.")
+
+    rate = subparsers.add_parser("rate", help="Send native angular-rate control in degrees per second.")
+    rate.add_argument("--tilt", type=float, default=0.0, help="Tilt rate in degrees per second.")
+    rate.add_argument("--roll", type=float, default=0.0, help="Roll rate in degrees per second.")
+    rate.add_argument("--pan", type=float, default=0.0, help="Pan rate in degrees per second.")
+    rate.add_argument("--seconds", type=float, default=0.5, help="How long to hold the native rate command.")
+    rate.add_argument("--rate", type=float, default=5.0, help="Native rate command refresh rate in Hz.")
+    rate.add_argument("--max-speed", type=float, default=30.0, help="Safety limit for absolute native rate values.")
+    rate.add_argument(
+        "--allow-negative",
+        action="store_true",
+        help="Allow unvalidated negative native rates for protocol experiments.",
+    )
 
     goto = subparsers.add_parser("goto", help="Move to an absolute pose.")
     goto.add_argument("--tilt", type=float, required=True, help="Target tilt in degrees.")
@@ -104,6 +117,18 @@ async def run_cli(args: argparse.Namespace) -> None:
     logger = FileLogger(args.log)
     stop_event = asyncio.Event()
     install_signal_stop_handler(stop_event)
+    if args.command == "rate":
+        if args.seconds < 0:
+            raise SystemExit("--seconds must be non-negative")
+        if args.rate <= 0:
+            raise SystemExit("--rate must be positive")
+        if args.max_speed <= 0:
+            raise SystemExit("--max-speed must be positive")
+        if not args.allow_negative and any(value < 0 for value in (args.tilt, args.roll, args.pan)):
+            raise SystemExit("negative native rates are not validated yet; use --allow-negative only for protocol tests")
+        if any(abs(value) > args.max_speed for value in (args.tilt, args.roll, args.pan)):
+            raise SystemExit("--tilt, --roll, and --pan must not exceed --max-speed")
+
     log_callback = None if args.command == "state" else logger.emit
     client = RS3Client(args.address, timeout=args.timeout, log_callback=log_callback)
 
@@ -184,6 +209,16 @@ async def run_cli(args: argparse.Namespace) -> None:
             for _ in range(args.post_neutral):
                 await client.move_velocity(neutral, label="neutral-post")
                 await asyncio.sleep(interval)
+            return
+
+        if args.command == "rate":
+            await client.move_rate(
+                RateCommand(tilt_deg_s=args.tilt, roll_deg_s=args.roll, pan_deg_s=args.pan),
+                seconds=args.seconds,
+                rate=args.rate,
+                max_abs_speed_deg_s=args.max_speed,
+                allow_negative=args.allow_negative,
+            )
             return
 
         if args.command == "goto":

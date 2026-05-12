@@ -25,6 +25,15 @@ class VelocityCommand:
 
 
 @dataclass(frozen=True)
+class RateCommand:
+    """Native angular-rate request in degrees per second."""
+
+    tilt_deg_s: float = 0.0
+    roll_deg_s: float = 0.0
+    pan_deg_s: float = 0.0
+
+
+@dataclass(frozen=True)
 class Waypoint:
     """Absolute target pose in degrees."""
 
