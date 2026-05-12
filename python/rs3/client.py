@@ -14,6 +14,7 @@ from .protocol import (
     APP_INIT_COMMANDS,
     APP_POLL_PAYLOADS,
     Command,
+    build_absolute_angle_frame,
     build_keepalive_0410_frame,
     build_recenter_frame,
     build_sleep_frame,
@@ -163,22 +164,20 @@ class RS3Client:
         self,
         pose: Pose,
         *,
-        method: str = "track",
-        duration: float = 5.0,
-        track_mode: int = 0x0A,
-        track_param0: int = 20,
-        track_param1: int = 20,
+        duration: float = 2.0,
     ) -> None:
-        if method != "track":
-            raise NotImplementedError("only method='track' is implemented")
-        waypoint = Waypoint(tilt_deg=pose.tilt_deg, roll_deg=pose.roll_deg, pan_deg=pose.pan_deg)
-        await self.run_track(
-            [waypoint],
-            duration=duration,
-            track_mode=track_mode,
-            track_param0=track_param0,
-            track_param1=track_param1,
+        if duration < 0:
+            raise ValueError("duration must be non-negative")
+        duration_tenths = int(round(duration * 10.0))
+        frame = build_absolute_angle_frame(
+            sequence=self._next_sequence(),
+            tilt_deg=pose.tilt_deg,
+            roll_deg=pose.roll_deg,
+            pan_deg=pose.pan_deg,
+            duration_tenths=duration_tenths,
         )
+        await self.write_frame(frame, label="goto")
+        await asyncio.sleep(max(0.0, duration))
 
     async def run_track(
         self,

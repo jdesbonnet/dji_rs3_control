@@ -131,7 +131,7 @@ The default is `5 Hz`, which matches the observed app behavior. Treat `--rate`
 as protocol cadence rather than speed control; use larger or smaller axis
 values to change speed.
 
-Move to an absolute pose using the native track command:
+Move to an absolute pose:
 
 ```bash
 python3 -m rs3.cli.ctl goto --tilt 10 --pan -30
@@ -139,7 +139,7 @@ python3 -m rs3.cli.ctl goto --tilt 0 --roll 0 --pan 0
 ```
 
 Angles for `goto` are degrees. The current implementation uses the discovered
-`0x04/0x62` track/waypoint command internally.
+`0x04/0x14` absolute-angle command internally.
 
 Run a multi-waypoint track:
 
@@ -348,7 +348,7 @@ Important async methods:
 - `sleep()`
 - `wake()`
 - `request_state(active=True, timeout=3.0, poll_interval=1.0)`
-- `go_to(Pose(...), method="track")`
+- `go_to(Pose(...), duration=2.0)`
 - `run_track([Waypoint(...), ...])`
 - `stream_telemetry(seconds=None)`
 
@@ -402,14 +402,17 @@ axis1 = roll
 axis2 = pan / yaw
 ```
 
-Angles exposed by the public API are degrees. The protocol telemetry and
-waypoint payloads appear to use signed tenths of a degree internally.
+Angles exposed by the public API are degrees. The protocol telemetry,
+absolute-angle payloads, and waypoint payloads appear to use signed tenths of a
+degree internally.
 
 ## Current Limitations
 
 - `move_velocity()` currently accepts joystick deflection units, not calibrated
   degrees per second.
-- `go_to()` currently supports only `method="track"`.
+- `go_to()` uses the `0x04/0x14` absolute-angle command. Pan has been validated
+  in live testing; tilt and roll follow the inferred payload layout and need
+  more hardware testing.
 - BLE discovery is not implemented yet; pass the device address explicitly when
   the default address is not correct.
 - The project is repo-local for now. Run from `python/` or set

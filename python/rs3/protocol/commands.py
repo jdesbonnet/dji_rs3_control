@@ -152,6 +152,54 @@ def build_wake_frame(*, sequence: int) -> bytes:
     )
 
 
+def build_absolute_angle_payload(
+    *,
+    tilt_deg: float,
+    roll_deg: float,
+    pan_deg: float,
+    control_flags: int = 0x01,
+    duration_tenths: int = 20,
+) -> bytes:
+    if not 0 <= control_flags <= 0xFF:
+        raise ValueError("control flags must fit in one byte")
+    if not 0 <= duration_tenths <= 0xFF:
+        raise ValueError("duration_tenths must fit in one byte")
+    return b"".join(
+        [
+            int16_bytes(degrees_to_tenths(pan_deg)),
+            int16_bytes(degrees_to_tenths(roll_deg)),
+            int16_bytes(degrees_to_tenths(tilt_deg)),
+            bytes([control_flags, duration_tenths]),
+        ]
+    )
+
+
+def build_absolute_angle_frame(
+    *,
+    sequence: int,
+    tilt_deg: float,
+    roll_deg: float,
+    pan_deg: float,
+    control_flags: int = 0x01,
+    duration_tenths: int = 20,
+) -> bytes:
+    return build_frame(
+        sender=0x02,
+        receiver=0x04,
+        sequence=sequence,
+        cmd_type=0x40,
+        cmd_set=0x04,
+        cmd_id=0x14,
+        payload=build_absolute_angle_payload(
+            tilt_deg=tilt_deg,
+            roll_deg=roll_deg,
+            pan_deg=pan_deg,
+            control_flags=control_flags,
+            duration_tenths=duration_tenths,
+        ),
+    )
+
+
 def build_track_payload(
     waypoints_deg: list[tuple[float, float, float]],
     *,

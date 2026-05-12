@@ -53,15 +53,16 @@ def build_parser() -> argparse.ArgumentParser:
     move.add_argument("--pre-neutral", type=int, default=3, help="Neutral frames before the motion burst.")
     move.add_argument("--post-neutral", type=int, default=5, help="Neutral frames after the motion burst.")
 
-    goto = subparsers.add_parser("goto", help="Move to an absolute pose using the best available method.")
+    goto = subparsers.add_parser("goto", help="Move to an absolute pose.")
     goto.add_argument("--tilt", type=float, required=True, help="Target tilt in degrees.")
     goto.add_argument("--roll", type=float, default=0.0, help="Target roll in degrees.")
     goto.add_argument("--pan", type=float, required=True, help="Target pan in degrees.")
-    goto.add_argument("--method", default="track", choices=["track"], help="Absolute move strategy.")
-    goto.add_argument("--duration", type=float, default=5.0, help="How long to remain connected after issuing the command.")
-    goto.add_argument("--track-mode", type=lambda value: int(value, 0), default=0x0A)
-    goto.add_argument("--track-param0", type=int, default=20)
-    goto.add_argument("--track-param1", type=int, default=20)
+    goto.add_argument(
+        "--duration",
+        type=float,
+        default=2.0,
+        help="Requested move duration in seconds; also keeps the connection open long enough to observe the move.",
+    )
 
     track = subparsers.add_parser("track", help="Send a multi-waypoint track program.")
     track.add_argument(
@@ -186,13 +187,11 @@ async def run_cli(args: argparse.Namespace) -> None:
             return
 
         if args.command == "goto":
+            if args.duration < 0:
+                raise SystemExit("--duration must be non-negative")
             await client.go_to(
                 Pose(tilt_deg=args.tilt, roll_deg=args.roll, pan_deg=args.pan),
-                method=args.method,
                 duration=args.duration,
-                track_mode=args.track_mode,
-                track_param0=args.track_param0,
-                track_param1=args.track_param1,
             )
             return
 
