@@ -75,10 +75,57 @@ end-2   2     frame_crc16, little-endian
 
 Horizontal byte map, where `N` is the total frame length:
 
-| Byte(s) | 0 | 1 | 2 | 3 | 4 | 5 | 6..7 | 8 | 9 | 10 | 11..N-3 | N-2..N-1 |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Field | start | length_lo | version_len_hi | header_crc8 | sender | receiver | sequence | cmd_type | cmd_set | cmd_id | payload | frame_crc16 |
-| Encoding/value | `0x55` | `len[7:0]` | `ver + len[9:8]` | header CRC | `u8` | `u8` | `u16le` | `u8` | `u8` | `u8` | variable | `u16le` |
+<table>
+  <thead>
+    <tr>
+      <th>Byte(s)</th>
+      <th>0</th>
+      <th>1</th>
+      <th>2</th>
+      <th>3</th>
+      <th>4</th>
+      <th>5</th>
+      <th>6..7</th>
+      <th>8</th>
+      <th>9</th>
+      <th>10</th>
+      <th>11..N-3</th>
+      <th>N-2..N-1</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>Field</th>
+      <td>start</td>
+      <td>length_lo</td>
+      <td>version_len_hi</td>
+      <td>header_crc8</td>
+      <td>sender</td>
+      <td>receiver</td>
+      <td>sequence</td>
+      <td>cmd_type</td>
+      <td>cmd_set</td>
+      <td>cmd_id</td>
+      <td>payload</td>
+      <td>frame_crc16</td>
+    </tr>
+    <tr>
+      <th>Encoding/value</th>
+      <td><code>0x55</code></td>
+      <td><code>len[7:0]</code></td>
+      <td><code>ver + len[9:8]</code></td>
+      <td>header CRC</td>
+      <td><code>u8</code></td>
+      <td><code>u8</code></td>
+      <td><code>u16le</code></td>
+      <td><code>u8</code></td>
+      <td><code>u8</code></td>
+      <td><code>u8</code></td>
+      <td>variable</td>
+      <td><code>u16le</code></td>
+    </tr>
+  </tbody>
+</table>
 
 The total frame length includes the header, payload, and trailing CRC16.
 
