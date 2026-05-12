@@ -2,7 +2,7 @@
 
 Author: Joe Desbonnet (with aid of gpt-5.4 and gpt-5.5 models)
 
-Last edit:   2026-04-26
+Last edit:   2026-05-12
 
 ## 1. Overview
 
@@ -204,6 +204,7 @@ Ordered by command code (`cmd_set` / `cmd_id`):
 | `0x04/0x0f` | `0x02` | `0x04` | sleep/wake control |
 | `0x04/0x10` | `0x02` | `0x04` | `[SPECULATIVE]` control keepalive / authority |
 | `0x04/0x12` | `0x02` | `0xe5` | `[SPECULATIVE]` status poll / telemetry configuration |
+| `0x04/0x14` | `0x02` | `0x04` | absolute angle control |
 | `0x04/0x27` | `0x04` | `0x02` | sleep status notification |
 | `0x04/0x4c` | `0x02` | `0x04` | recenter to zero pose |
 | `0x04/0x62` | `0x02` | `0x04` | `[SPECULATIVE]` track waypoint program |
@@ -280,7 +281,65 @@ The roll examples use `+/-125` from neutral. They are representative payloads, n
 
 ## 6. Control Session Commands
 
-### 6.1 Recenter Command
+### 6.1 Absolute Angle Control Command
+
+The absolute angle command moves selected axes to absolute pose targets without
+using the track/waypoint preview command.
+
+```text
+sender     0x02
+receiver   0x04
+cmd_type   0x40
+cmd_set    0x04
+cmd_id     0x14
+payload    8 bytes
+```
+
+Payload layout, based on live pan/yaw validation and DJI R SDK prior art:
+
+```text
+offset  size  type   field
+0       2     s16le  axis2 / pan / yaw target, tenths of a degree
+2       2     s16le  axis1 / roll target, tenths of a degree [SPECULATIVE]
+4       2     s16le  axis0 / tilt / pitch target, tenths of a degree [SPECULATIVE]
+6       1     u8     control flags [SPECULATIVE]
+7       1     u8     duration or speed parameter, likely tenths of a second [SPECULATIVE]
+```
+
+The tested control byte was `0x0d`. Based on DJI R SDK prior art, the likely bit
+layout is:
+
+```text
+bit 0  absolute control when set
+bit 1  axis2 / pan / yaw invalid when set
+bit 2  axis1 / roll invalid when set
+bit 3  axis0 / tilt / pitch invalid when set
+bits 4..7 reserved
+```
+
+This interpretation means `0x0d` requests absolute control with pan/yaw valid
+and roll plus tilt ignored.
+
+Validated examples:
+
+```text
+payload c201000000000d14  -> pan target 45.0 deg, roll/tilt ignored, parameter 0x14
+payload 0000000000000d14  -> pan target 0.0 deg, roll/tilt ignored, parameter 0x14
+```
+
+Live validation on 2026-05-12:
+
+- starting pose before the first test: `tilt=0.0 roll=0.0 pan=89.5`
+- `0x04/0x14` payload `0000000000000d14` received response
+  `0x04/0x14 payload=00` and moved pan to `0.0`
+- `0x04/0x14` payload `c201000000000d14` moved pan to `45.0`
+- final normal state sample reported `tilt=0.0 roll=0.0 pan=45.1`
+
+This appears to be the generic no-preview absolute angle command. Further work
+is needed to validate roll, tilt, the full control flag byte, and the exact
+meaning of the final parameter byte.
+
+### 6.2 Recenter Command
 
 The recenter command moves the gimbal pose back to zero degrees on all three axes:
 
@@ -293,7 +352,7 @@ cmd_id     0x4c
 payload    fe01
 ```
 
-### 6.2 Sleep/Wake Command
+### 6.3 Sleep/Wake Command
 
 Sleep/wake is controlled with command set `0x04`, command id `0x0f`:
 
@@ -319,7 +378,7 @@ The gimbal can report sleep state through status notification `0x04/0x27`:
 0000000000    awake
 ```
 
-### 6.3 Gimbal Control Keepalive `[SPECULATIVE]`
+### 6.4 Gimbal Control Keepalive `[SPECULATIVE]`
 
 The following command may act as a control keepalive or control-authority request:
 
@@ -345,7 +404,7 @@ payload    00120100
 
 The required cadence and exact semantics of this command are `[SPECULATIVE]`.
 
-### 6.4 Status Poll Command `[SPECULATIVE]`
+### 6.5 Status Poll Command `[SPECULATIVE]`
 
 The telemetry/status endpoint accepts command set `0x04`, command id `0x12`:
 
@@ -367,7 +426,7 @@ Known payload forms include:
 
 This command appears to request or configure status reporting. It is not required for basic passive notification reception. Its side effects are `[SPECULATIVE]`.
 
-### 6.5 Panorama Program Command `[SPECULATIVE]`
+### 6.6 Panorama Program Command `[SPECULATIVE]`
 
 The panorama program command starts an autonomous multi-position panorama movement:
 
@@ -396,7 +455,7 @@ The first two fields are likely pan/yaw sweep bounds in whole degrees. In the sa
 
 The remaining fields are `[SPECULATIVE]`. They may describe vertical sweep bounds, camera field of view, grid shape, shot spacing, row count, direction, or panorama mode.
 
-### 6.5 Panorama Progress Frame `[SPECULATIVE]`
+### 6.7 Panorama Progress Frame `[SPECULATIVE]`
 
 During panorama execution, the gimbal sends progress notifications:
 
@@ -428,7 +487,7 @@ cmd_id     0x64
 payload    empty
 ```
 
-### 6.6 Track Waypoint Program Command `[SPECULATIVE]`
+### 6.8 Track Waypoint Program Command `[SPECULATIVE]`
 
 The track waypoint command starts or updates an autonomous movement through one or more pan/tilt waypoints:
 
@@ -481,7 +540,7 @@ The app preview moved the gimbal through poses matching these `axis0` and `axis2
 
 The first two per-waypoint parameters are `[SPECULATIVE]`. They may represent speed, interpolation, dwell, easing, or track timing. The observed value was `20` for both fields.
 
-### 6.7 Track Status Frame `[SPECULATIVE]`
+### 6.9 Track Status Frame `[SPECULATIVE]`
 
 Track execution status uses command id `0x6b`:
 
@@ -618,7 +677,116 @@ wait 100-200 ms
 send neutral joystick frame
 ```
 
-## 9. Open Items
+## 9. Related Reverse Engineering Work
+
+Public work on other DJI gimbals and DJI internal protocols suggests that the
+RS 3 BLE protocol is part of a broader DJI pattern rather than a one-off design.
+The common theme is that DJI reuses similar gimbal data models across different
+outer transports and frame formats.
+
+### 9.1 DUML Across DJI Products
+
+Community DUML dissectors and protocol writeups describe the same core packet
+shape used here:
+
+- `0x55` frame delimiter
+- packed length/version field
+- header CRC
+- sender and receiver endpoint IDs
+- sequence number
+- command type
+- command set and command id
+- command-specific payload
+- trailing CRC16
+
+The `o-gs/dji-firmware-tools` DUML dissectors identify endpoint `0x04` as
+`Gimbal` and command set `0x04` as `Gimbal`, matching the RS 3 BLE captures in
+this document. Its gimbal command table also lists nearby commands that are
+useful search targets for RS 3 work:
+
+```text
+0x04/0x01   Gimbal Control
+0x04/0x0a   Gimbal Ext Ctrl Degree / Rotate / Angle Set
+0x04/0x0c   Gimbal Ext Ctrl Accel / Speed Control
+0x04/0x14   Gimbal Abs Angle Control
+0x04/0x4c   Gimbal Reset And Set Mode
+```
+
+These names should not be assumed to map one-to-one to RS 3 firmware behavior,
+but they support the interpretation that command set `0x04` is the right area
+to search for generic gimbal angle and speed controls.
+
+### 9.2 DUML Over CAN on Osmo / Zenmuse Gimbals
+
+CBUnmanned's Osmo / Zenmuse X3 / X5 reverse-engineering notes report a CAN bus
+between the Osmo handle and gimbal running at `1,000,000 bps`. The captured CAN
+payload stream appears to contain normal `0x55` DUML frames split across
+multiple 8-byte CAN frames.
+
+This is directly relevant to the RS 3 BLE work because it suggests DUML is the
+application protocol and BLE is only one transport. Other DJI products appear to
+carry the same style of DUML packet over CAN, UART, USB/network, or Wi-Fi.
+
+### 9.3 RS2 / Ronin SDK CAN Protocol
+
+The public RS2 / Ronin CAN work is semantically close, but not byte-for-byte the
+same as the RS 3 BLE DUML frames documented here. Projects such as
+`ceinem/dji_rs2_ros_controller`, ArduPilot's `mount-djirs2-driver.lua`, and
+`ConstantRobotics/DJIR_SDK` are based on DJI R SDK protocol behavior over CAN.
+
+Notable differences:
+
+- The RS2 / Ronin SDK frame described by ArduPilot starts with `0xaa`, not
+  DUML's `0x55`.
+- ArduPilot documents CAN frame id `0x223` for host-to-gimbal and `0x222` for
+  gimbal-to-host.
+- The command namespace in the ArduPilot driver uses command set `0x0e`, not
+  RS 3 BLE's observed `0x04` gimbal command set.
+
+Notable similarities:
+
+- Position control uses yaw, roll, and pitch as signed `int16` values.
+- Angle units are tenths of a degree.
+- A control byte selects relative vs absolute control and marks individual axes
+  invalid.
+- A duration byte uses units of `0.1 s`.
+- Position feedback also reports yaw, roll, and pitch as signed tenths of a
+  degree.
+
+The RS2 / Ronin SDK control shape is therefore a strong semantic clue. It
+supports the hypothesis that RS 3 should have a no-LCD absolute angle command
+whose payload contains three signed axis targets, validity/absolute bits, and
+possibly a duration or speed field.
+
+### 9.4 DJI Onboard SDK Gimbal Model
+
+DJI's Onboard SDK documentation describes gimbal angle and speed control using
+the same basic data model:
+
+- angle control has yaw, roll, pitch, mode, and duration fields
+- yaw, roll, and pitch are signed `int16` values in `0.1 degree` units
+- duration is in `0.1 s`
+- speed control uses yaw, roll, and pitch rates in `0.1 deg/s`
+
+This is not proof that the RS 3 BLE firmware accepts the same packet format, but
+it is independent confirmation that signed tenths-of-a-degree axis values are a
+standard DJI gimbal representation.
+
+### 9.5 Working Hypotheses From Prior Art
+
+- The current `0x04/0x62` RS 3 command is best treated as a track/waypoint
+  preview command, not as a generic goto command. This matches the gimbal LCD
+  showing a preview-complete message after a one-waypoint `goto`.
+- A cleaner no-LCD absolute move has been validated as `0x04/0x14`.
+- Other candidates around `0x04/0x0a` and `0x04/0x0c` may still represent
+  related degree or speed controls based on older DUML dissector naming.
+- A closed-loop goto can still be built using `0x04/0x01` joystick/velocity
+  control plus `0x04/0x66` pose telemetry if lower-level continuous control is
+  preferred.
+- Cross-product command names are useful hints, but command IDs and payload
+  layouts must be validated on RS 3 firmware before being documented as fact.
+
+## 10. Open Items
 
 The following protocol details remain `[SPECULATIVE]`:
 
@@ -628,7 +796,19 @@ The following protocol details remain `[SPECULATIVE]`:
 - the exact field layout of telemetry frame `0x04/0x66`
 - the full meaning of `cmd_type`
 - the roles of secondary endpoint IDs
+- validate roll and tilt behavior for `0x04/0x14`
+- characterize the `0x04/0x14` control flag byte and final duration/speed byte
+- determine whether `0x04/0x0a` or `0x04/0x0c` implement related degree/speed
+  controls
 
-## 10. References
+## 11. References
 
 - [DJI Wi-Fi Protocol Reverse Engineering, Master Thesis Thomas Christof, 2021](https://www.digidow.eu/publications/2021-christof-masterthesis/Christof_2021_MasterThesis_DJIProtocolReverseEngineering.pdf)
+- [DJI Protocol packet-structure writeup](https://www.push-force.dev/article/73)
+- [o-gs/dji-firmware-tools DUML dissectors](https://github.com/o-gs/dji-firmware-tools/tree/master/comm_dissector/wireshark)
+- [CBUnmanned Osmo / Zenmuse X3 / X5 CAN reverse-engineering notes](https://www.cbunmanned.com/blog/dji-osmozenmuse-x3-amp-x5-aftermarket-uav-integration)
+- [ceinem/dji_rs2_ros_controller](https://github.com/ceinem/dji_rs2_ros_controller)
+- [ArduPilot DJI RS2 mount driver](https://github.com/ArduPilot/ardupilot/blob/master/libraries/AP_Scripting/drivers/mount-djirs2-driver.lua)
+- [ConstantRobotics/DJIR_SDK](https://github.com/ConstantRobotics/DJIR_SDK)
+- [DJI Onboard SDK Gimbal AngleData](https://developer.dji.com/onboard-api-reference/structDJI_1_1OSDK_1_1Gimbal_1_1AngleData.html)
+- [DJI Onboard SDK Gimbal SpeedData](https://developer.dji.com/onboard-api-reference/structDJI_1_1OSDK_1_1Gimbal_1_1SpeedData.html)

@@ -256,6 +256,43 @@ AXIS0,AXIS1,AXIS2
 These values are converted internally to degrees by dividing by `10`, matching
 the current tenths-of-a-degree interpretation.
 
+Send an arbitrary DUML command for protocol experiments:
+
+```bash
+python3 -m rs3.cli.probe raw \
+  --raw-set 0x04 \
+  --raw-id 0x14 \
+  --raw-payload 0000000000000000 \
+  --duration 2 \
+  --telemetry \
+  --dump-frames
+```
+
+Raw command options:
+
+```text
+--raw-set       DUML command set, for example 0x04 for gimbal commands
+--raw-id        DUML command id within the selected command set
+--raw-payload   command payload as contiguous hex bytes; use "" for empty
+--raw-receiver  destination endpoint, default 0x04 for the gimbal
+--raw-type      DUML command type, default 0x40 for request / command
+```
+
+Use `--dry-run` before live tests to verify the complete encoded DUML frame
+without connecting to the gimbal:
+
+```bash
+python3 -m rs3.cli.probe raw \
+  --raw-set 0x04 \
+  --raw-id 0x14 \
+  --raw-payload 0000000000000000 \
+  --dry-run
+```
+
+The probe script sends neutral joystick frames before and after a raw command.
+That is intentional safety behavior, but it should be considered when reading
+logs from short experiments.
+
 Useful probe options:
 
 ```bash
