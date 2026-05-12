@@ -100,9 +100,9 @@ Horizontal byte map, where `N` is the total frame length:
       <td>len_lo</td>
       <td>ver_len_hi</td>
       <td>hdr_crc8</td>
-      <td>sender</td>
-      <td>receiver</td>
-      <td>sequence</td>
+      <td>snd</td>
+      <td>rcv</td>
+      <td>seq</td>
       <td>cmd_type</td>
       <td>cmd_set</td>
       <td>cmd_id</td>
