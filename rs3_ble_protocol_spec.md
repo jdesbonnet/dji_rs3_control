@@ -323,6 +323,8 @@ Validated examples:
 payload 00000000000000  -> response payload 00, no observed movement
 payload 00000000000080  -> response payload 00, no observed movement
 payload 14000000000080  -> response payload 00, pan moved about +1.0 deg
+payload f6ff0000000080  -> response payload not captured, pan moved about -0.1 deg
+payload 9cff0000000080  -> response payload not captured, pan moved about -4.1 deg
 ```
 
 Live validation on 2026-05-12:
@@ -337,10 +339,11 @@ Live validation on 2026-05-12:
 - telemetry during the positive pan-speed test moved from approximately
   `pan=90.2` to `pan=91.2`
 - final normal state sample reported `tilt=0.0 roll=0.0 pan=91.2`
+- negative pan-speed payload `f6ff0000000080` moved pan from `111.0` to `110.9`
+- negative pan-speed payload `9cff0000000080` moved pan from `110.9` to `106.8`
 
 Further work is needed before exposing this as a high-level API: validate
-negative/reverse direction semantics, roll and tilt axes, the exact signedness
-of the speed fields, flag bit `0x04`, and the firmware's speed-command timeout.
+roll and tilt axes, flag bit `0x04`, and the firmware's speed-command timeout.
 Based on DJI R SDK behavior, controllers should send zero/release after a speed
 test and should stream repeated speed commands for continuous rate control.
 
@@ -848,9 +851,9 @@ standard DJI gimbal representation.
   preview command, not as a generic goto command. This matches the gimbal LCD
   showing a preview-complete message after a one-waypoint `goto`.
 - A cleaner no-LCD absolute move has been validated as `0x04/0x14`.
-- Native speed/rate control has been partially validated as `0x04/0x0c`, but
-  reverse direction, roll, tilt, and all flag semantics still need controlled
-  testing before this should become a normal high-level API.
+- Native speed/rate control has been partially validated as `0x04/0x0c`.
+  Positive and negative pan/yaw rates work as signed `int16` values. Roll,
+  tilt, and all flag semantics still need controlled testing.
 - Candidate `0x04/0x0a` may still represent related degree or rotate control
   based on older DUML dissector naming.
 - A closed-loop goto can still be built using `0x04/0x01` joystick/velocity
@@ -871,7 +874,7 @@ The following protocol details remain `[SPECULATIVE]`:
 - the roles of secondary endpoint IDs
 - validate roll and tilt behavior for `0x04/0x14`
 - characterize the `0x04/0x14` control flag byte and final duration/speed byte
-- validate negative/reverse direction, roll, and tilt behavior for `0x04/0x0c`
+- validate roll and tilt behavior for `0x04/0x0c`
 - characterize the `0x04/0x0c` control flag byte and speed-command timeout
 - determine whether `0x04/0x0a` implements related degree or rotate control
 

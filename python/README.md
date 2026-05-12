@@ -138,9 +138,9 @@ python3 -m rs3.cli.ctl rate --pan 20 --seconds 0.7
 ```
 
 `rate` uses the discovered `0x04/0x0c` native speed command. Values are degrees
-per second, not joystick units. Positive pan/yaw rates have been validated in
-live testing. Negative native rates are blocked by default until reverse
-direction semantics are validated; use `rs3.cli.probe raw` for protocol
+per second, not joystick units. Positive and negative pan/yaw rates have been
+validated in live testing. Negative tilt and roll rates are blocked by default
+until those axes are validated; use `rs3.cli.probe raw` for protocol
 experiments outside the safe CLI path.
 
 Move to an absolute pose:
@@ -426,9 +426,9 @@ degree per second.
 
 - `move_velocity()` currently accepts joystick deflection units, not calibrated
   degrees per second.
-- `move_rate()` uses the `0x04/0x0c` native speed command. Positive pan/yaw has
-  been validated in live testing; negative/reverse direction, tilt, and roll
-  need more hardware testing.
+- `move_rate()` uses the `0x04/0x0c` native speed command. Positive and
+  negative pan/yaw have been validated in live testing; tilt and roll need more
+  hardware testing.
 - `go_to()` uses the `0x04/0x14` absolute-angle command. Pan has been validated
   in live testing; tilt and roll follow the inferred payload layout and need
   more hardware testing.

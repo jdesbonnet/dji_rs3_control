@@ -124,8 +124,8 @@ async def run_cli(args: argparse.Namespace) -> None:
             raise SystemExit("--rate must be positive")
         if args.max_speed <= 0:
             raise SystemExit("--max-speed must be positive")
-        if not args.allow_negative and any(value < 0 for value in (args.tilt, args.roll, args.pan)):
-            raise SystemExit("negative native rates are not validated yet; use --allow-negative only for protocol tests")
+        if not args.allow_negative and (args.tilt < 0 or args.roll < 0):
+            raise SystemExit("negative native tilt/roll rates are not validated yet; use --allow-negative only for protocol tests")
         if any(abs(value) > args.max_speed for value in (args.tilt, args.roll, args.pan)):
             raise SystemExit("--tilt, --roll, and --pan must not exceed --max-speed")
 

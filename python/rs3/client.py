@@ -179,8 +179,8 @@ class RS3Client:
             raise ValueError("max_abs_speed_deg_s must be positive")
 
         speeds = (command.tilt_deg_s, command.roll_deg_s, command.pan_deg_s)
-        if not allow_negative and any(speed < 0 for speed in speeds):
-            raise ValueError("negative native rates are not validated yet; use allow_negative=True for protocol tests")
+        if not allow_negative and (command.tilt_deg_s < 0 or command.roll_deg_s < 0):
+            raise ValueError("negative native tilt/roll rates are not validated yet; use allow_negative=True for protocol tests")
         too_fast = [speed for speed in speeds if abs(speed) > max_abs_speed_deg_s]
         if too_fast:
             raise ValueError(f"native rate exceeds max_abs_speed_deg_s={max_abs_speed_deg_s}")
