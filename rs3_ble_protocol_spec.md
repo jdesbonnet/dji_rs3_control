@@ -194,6 +194,25 @@ Common command type values:
 
 The bit-level meaning of `cmd_type` is `[SPECULATIVE]`.
 
+### 4.3 Command Summary
+
+Ordered by command code (`cmd_set` / `cmd_id`):
+
+| Command code | Sender | Receiver | Description |
+| --- | --- | --- | --- |
+| `0x04/0x01` | `0x02` | `0x04` | joystick control |
+| `0x04/0x0f` | `0x02` | `0x04` | sleep/wake control |
+| `0x04/0x10` | `0x02` | `0x04` | `[SPECULATIVE]` control keepalive / authority |
+| `0x04/0x12` | `0x02` | `0xe5` | `[SPECULATIVE]` status poll / telemetry configuration |
+| `0x04/0x27` | `0x04` | `0x02` | sleep status notification |
+| `0x04/0x4c` | `0x02` | `0x04` | recenter to zero pose |
+| `0x04/0x62` | `0x02` | `0x04` | `[SPECULATIVE]` track waypoint program |
+| `0x04/0x63` | `0x02` | `0x04` | `[SPECULATIVE]` panorama program start |
+| `0x04/0x64` | `0x04` | `0x02` | `[SPECULATIVE]` panorama progress notification |
+| `0x04/0x66` | `0xe5` | `0x02` | status telemetry |
+| `0x04/0x6b` | `0x04` | `0x02` | `[SPECULATIVE]` track status notification |
+| `0x0d/0x02` | `0xe5` | `0x02` | status telemetry |
+
 ## 5. Joystick Control Command
 
 ### 5.1 Command Identity
@@ -599,25 +618,7 @@ wait 100-200 ms
 send neutral joystick frame
 ```
 
-## 9. Command Summary
-
-```text
-cmd_set  cmd_id  sender  receiver  description
-0x04     0x01    0x02    0x04      joystick control
-0x04     0x0f    0x02    0x04      sleep/wake control
-0x04     0x27    0x04    0x02      sleep status notification
-0x04     0x4c    0x02    0x04      recenter to zero pose
-0x04     0x62    0x02    0x04      [SPECULATIVE] track waypoint program
-0x04     0x63    0x02    0x04      [SPECULATIVE] panorama program start
-0x04     0x64    0x04    0x02      [SPECULATIVE] panorama progress notification
-0x04     0x6b    0x04    0x02      [SPECULATIVE] track status notification
-0x04     0x10    0x02    0x04      [SPECULATIVE] control keepalive / authority
-0x04     0x12    0x02    0xe5      [SPECULATIVE] status poll / telemetry configuration
-0x0d     0x02    0xe5    0x02      status telemetry
-0x04     0x66    0xe5    0x02      status telemetry
-```
-
-## 10. Open Items
+## 9. Open Items
 
 The following protocol details remain `[SPECULATIVE]`:
 
@@ -628,6 +629,6 @@ The following protocol details remain `[SPECULATIVE]`:
 - the full meaning of `cmd_type`
 - the roles of secondary endpoint IDs
 
-## 11. References
+## 10. References
 
 - [DJI Wi-Fi Protocol Reverse Engineering, Master Thesis Thomas Christof, 2021](https://www.digidow.eu/publications/2021-christof-masterthesis/Christof_2021_MasterThesis_DJIProtocolReverseEngineering.pdf)
