@@ -110,11 +110,11 @@ Horizontal byte map, where `N` is the total frame length:
       <td>frame_crc16</td>
     </tr>
     <tr>
-      <th>Encoding/value</th>
+      <th>Encoding</th>
       <td><code>0x55</code></td>
       <td><code>len[7:0]</code></td>
       <td><code>ver + len[9:8]</code></td>
-      <td>header CRC</td>
+      <td><code>u8</code></td>
       <td><code>u8</code></td>
       <td><code>u8</code></td>
       <td><code>u16le</code></td>
