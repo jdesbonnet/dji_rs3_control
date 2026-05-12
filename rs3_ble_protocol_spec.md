@@ -201,6 +201,7 @@ Ordered by command code (`cmd_set` / `cmd_id`):
 | Command code | Sender | Receiver | Description |
 | --- | --- | --- | --- |
 | `0x04/0x01` | `0x02` | `0x04` | joystick control |
+| `0x04/0x0c` | `0x02` | `0x04` | native speed / rate control `[PARTIAL]` |
 | `0x04/0x0f` | `0x02` | `0x04` | sleep/wake control |
 | `0x04/0x10` | `0x02` | `0x04` | `[SPECULATIVE]` control keepalive / authority |
 | `0x04/0x12` | `0x02` | `0xe5` | `[SPECULATIVE]` status poll / telemetry configuration |
@@ -281,7 +282,69 @@ The roll examples use `+/-125` from neutral. They are representative payloads, n
 
 ## 6. Control Session Commands
 
-### 6.1 Absolute Angle Control Command
+### 6.1 Native Speed / Rate Control Command `[PARTIAL]`
+
+The native speed command appears to command calibrated gimbal angular rate,
+unlike joystick command `0x04/0x01`, whose axis values are controller
+deflection units. This command was identified from DJI R SDK prior art and
+validated with a small positive pan/yaw movement on RS 3 BLE.
+
+```text
+sender     0x02
+receiver   0x04
+cmd_type   0x40
+cmd_set    0x04
+cmd_id     0x0c
+payload    7 bytes
+```
+
+Payload layout, based on DJI R SDK prior art and one live positive pan/yaw
+test:
+
+```text
+offset  size  type           field
+0       2     s16le/u16le    axis2 / pan / yaw speed, likely 0.1 deg/s
+2       2     s16le/u16le    axis1 / roll speed, likely 0.1 deg/s [SPECULATIVE]
+4       2     s16le/u16le    axis0 / tilt / pitch speed, likely 0.1 deg/s [SPECULATIVE]
+6       1     u8             control flags [SPECULATIVE]
+```
+
+Likely control flag bits from DJI R SDK prior art:
+
+```text
+bit 7  speed control takeover when set; release speed control when clear
+bit 3  camera focal length compensation disable when set [SPECULATIVE]
+bits 0..2,4..6 reserved
+```
+
+Validated examples:
+
+```text
+payload 00000000000000  -> response payload 00, no observed movement
+payload 00000000000080  -> response payload 00, no observed movement
+payload 14000000000080  -> response payload 00, pan moved about +1.0 deg
+```
+
+Live validation on 2026-05-12:
+
+- baseline pose before testing: `tilt=0.0 roll=0.0 pan=89.9`
+- zero/release payload `00000000000000` received response
+  `0x04/0x0c payload=00`
+- zero/takeover payload `00000000000080` received response
+  `0x04/0x0c payload=00`
+- positive pan-speed payload `14000000000080` received response
+  `0x04/0x0c payload=00`
+- telemetry during the positive pan-speed test moved from approximately
+  `pan=90.2` to `pan=91.2`
+- final normal state sample reported `tilt=0.0 roll=0.0 pan=91.2`
+
+Further work is needed before exposing this as a high-level API: validate
+negative/reverse direction semantics, roll and tilt axes, the exact signedness
+of the speed fields, flag bit `0x04`, and the firmware's speed-command timeout.
+Based on DJI R SDK behavior, controllers should send zero/release after a speed
+test and should stream repeated speed commands for continuous rate control.
+
+### 6.2 Absolute Angle Control Command
 
 The absolute angle command moves selected axes to absolute pose targets without
 using the track/waypoint preview command.
@@ -339,7 +402,7 @@ This appears to be the generic no-preview absolute angle command. Further work
 is needed to validate roll, tilt, the full control flag byte, and the exact
 meaning of the final parameter byte.
 
-### 6.2 Recenter Command
+### 6.3 Recenter Command
 
 The recenter command moves the gimbal pose back to zero degrees on all three axes:
 
@@ -352,7 +415,7 @@ cmd_id     0x4c
 payload    fe01
 ```
 
-### 6.3 Sleep/Wake Command
+### 6.4 Sleep/Wake Command
 
 Sleep/wake is controlled with command set `0x04`, command id `0x0f`:
 
@@ -378,7 +441,7 @@ The gimbal can report sleep state through status notification `0x04/0x27`:
 0000000000    awake
 ```
 
-### 6.4 Gimbal Control Keepalive `[SPECULATIVE]`
+### 6.5 Gimbal Control Keepalive `[SPECULATIVE]`
 
 The following command may act as a control keepalive or control-authority request:
 
@@ -404,7 +467,7 @@ payload    00120100
 
 The required cadence and exact semantics of this command are `[SPECULATIVE]`.
 
-### 6.5 Status Poll Command `[SPECULATIVE]`
+### 6.6 Status Poll Command `[SPECULATIVE]`
 
 The telemetry/status endpoint accepts command set `0x04`, command id `0x12`:
 
@@ -426,7 +489,7 @@ Known payload forms include:
 
 This command appears to request or configure status reporting. It is not required for basic passive notification reception. Its side effects are `[SPECULATIVE]`.
 
-### 6.6 Panorama Program Command `[SPECULATIVE]`
+### 6.7 Panorama Program Command `[SPECULATIVE]`
 
 The panorama program command starts an autonomous multi-position panorama movement:
 
@@ -455,7 +518,7 @@ The first two fields are likely pan/yaw sweep bounds in whole degrees. In the sa
 
 The remaining fields are `[SPECULATIVE]`. They may describe vertical sweep bounds, camera field of view, grid shape, shot spacing, row count, direction, or panorama mode.
 
-### 6.7 Panorama Progress Frame `[SPECULATIVE]`
+### 6.8 Panorama Progress Frame `[SPECULATIVE]`
 
 During panorama execution, the gimbal sends progress notifications:
 
@@ -487,7 +550,7 @@ cmd_id     0x64
 payload    empty
 ```
 
-### 6.8 Track Waypoint Program Command `[SPECULATIVE]`
+### 6.9 Track Waypoint Program Command `[SPECULATIVE]`
 
 The track waypoint command starts or updates an autonomous movement through one or more pan/tilt waypoints:
 
@@ -540,7 +603,7 @@ The app preview moved the gimbal through poses matching these `axis0` and `axis2
 
 The first two per-waypoint parameters are `[SPECULATIVE]`. They may represent speed, interpolation, dwell, easing, or track timing. The observed value was `20` for both fields.
 
-### 6.9 Track Status Frame `[SPECULATIVE]`
+### 6.10 Track Status Frame `[SPECULATIVE]`
 
 Track execution status uses command id `0x6b`:
 
@@ -677,6 +740,13 @@ wait 100-200 ms
 send neutral joystick frame
 ```
 
+For native speed command `0x04/0x0c`, a client should send a zero/release speed
+payload after any test or interrupted movement:
+
+```text
+00000000000000
+```
+
 ## 9. Related Reverse Engineering Work
 
 Public work on other DJI gimbals and DJI internal protocols suggests that the
@@ -778,8 +848,11 @@ standard DJI gimbal representation.
   preview command, not as a generic goto command. This matches the gimbal LCD
   showing a preview-complete message after a one-waypoint `goto`.
 - A cleaner no-LCD absolute move has been validated as `0x04/0x14`.
-- Other candidates around `0x04/0x0a` and `0x04/0x0c` may still represent
-  related degree or speed controls based on older DUML dissector naming.
+- Native speed/rate control has been partially validated as `0x04/0x0c`, but
+  reverse direction, roll, tilt, and all flag semantics still need controlled
+  testing before this should become a normal high-level API.
+- Candidate `0x04/0x0a` may still represent related degree or rotate control
+  based on older DUML dissector naming.
 - A closed-loop goto can still be built using `0x04/0x01` joystick/velocity
   control plus `0x04/0x66` pose telemetry if lower-level continuous control is
   preferred.
@@ -798,8 +871,9 @@ The following protocol details remain `[SPECULATIVE]`:
 - the roles of secondary endpoint IDs
 - validate roll and tilt behavior for `0x04/0x14`
 - characterize the `0x04/0x14` control flag byte and final duration/speed byte
-- determine whether `0x04/0x0a` or `0x04/0x0c` implement related degree/speed
-  controls
+- validate negative/reverse direction, roll, and tilt behavior for `0x04/0x0c`
+- characterize the `0x04/0x0c` control flag byte and speed-command timeout
+- determine whether `0x04/0x0a` implements related degree or rotate control
 
 ## 11. References
 
