@@ -97,9 +97,9 @@ Horizontal byte map, where `N` is the total frame length:
     <tr>
       <th>Field</th>
       <td>start</td>
-      <td>length_lo</td>
-      <td>version_len_hi</td>
-      <td>header_crc8</td>
+      <td>len_lo</td>
+      <td>ver_len_hi</td>
+      <td>hdr_crc8</td>
       <td>sender</td>
       <td>receiver</td>
       <td>sequence</td>
