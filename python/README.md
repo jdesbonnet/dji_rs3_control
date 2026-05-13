@@ -308,10 +308,16 @@ logs from short experiments.
 Useful probe options:
 
 ```bash
+python3 -m rs3.cli.probe monitor --duration 10 --dump-frames --filter 1c/01 --filter 02/80 --filter 04/66
 python3 -m rs3.cli.probe axis2 --delta 80 --duration 1.0 --dump-frames
 python3 -m rs3.cli.probe axis2 --delta 80 --duration 1.0 --log probe.log
 python3 -m rs3.cli.probe axis2 --delta 80 --duration 1.0 --dry-run
 ```
+
+`monitor` is passive by default. It subscribes to notifications and does not
+send neutral frames or movement commands. Use it while moving the physical
+gimbal or while another controller is active to inspect raw notification
+families.
 
 Avoid `--poll`, `--app-init`, and `--keepalive-0410` unless you are explicitly
 testing protocol setup behavior.

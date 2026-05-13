@@ -782,10 +782,11 @@ carry the same style of DUML packet over CAN, UART, USB/network, or Wi-Fi.
 
 ### 9.3 RS2 / Ronin SDK CAN Protocol
 
-The public RS2 / Ronin CAN work is semantically close, but not byte-for-byte the
-same as the RS 3 BLE DUML frames documented here. Projects such as
-`ceinem/dji_rs2_ros_controller`, ArduPilot's `mount-djirs2-driver.lua`, and
-`ConstantRobotics/DJIR_SDK` are based on DJI R SDK protocol behavior over CAN.
+The official DJI R SDK protocol documentation and public RS2 / Ronin CAN work
+are semantically close, but not byte-for-byte the same as the RS 3 BLE DUML
+frames documented here. Projects such as `ceinem/dji_rs2_ros_controller`,
+ArduPilot's `mount-djirs2-driver.lua`, and `ConstantRobotics/DJIR_SDK` are based
+on DJI R SDK protocol behavior over CAN.
 
 Notable differences:
 
@@ -805,6 +806,16 @@ Notable similarities:
 - A duration byte uses units of `0.1 s`.
 - Position feedback also reports yaw, roll, and pitch as signed tenths of a
   degree.
+
+The official `DJI_R_SDK_Protocol_and_User_Interface_EN_v2.5.pdf` is especially
+useful for search direction. It documents an explicit gimbal information obtain
+command, `CmdSet=0x0e CmdID=0x02`, which can request either attitude angle or
+joint angle, and a parameter push mechanism, `CmdSet=0x0e CmdID=0x07` to
+enable/disable push plus `CmdSet=0x0e CmdID=0x08` for pushed gimbal parameters.
+The push payload includes attitude angles, joint angles, validity flags, angle
+limits, and motor stiffness. The PDF does not prove the RS 3 BLE command IDs,
+but it strongly suggests that BLE equivalents of "obtain current gimbal angle"
+and "enable pushed gimbal parameters" may exist.
 
 The RS2 / Ronin SDK control shape is therefore a strong semantic clue. It
 supports the hypothesis that RS 3 should have a no-LCD absolute angle command
@@ -864,6 +875,7 @@ The following protocol details remain `[SPECULATIVE]`:
 - [DJI Protocol packet-structure writeup](https://www.push-force.dev/article/73)
 - [o-gs/dji-firmware-tools DUML dissectors](https://github.com/o-gs/dji-firmware-tools/tree/master/comm_dissector/wireshark)
 - [CBUnmanned Osmo / Zenmuse X3 / X5 CAN reverse-engineering notes](https://www.cbunmanned.com/blog/dji-osmozenmuse-x3-amp-x5-aftermarket-uav-integration)
+- [DJI RS SDK](https://www.dji.com/rs-sdk), including `DJI_R_SDK_Protocol_and_User_Interface_EN_v2.5.pdf`
 - [ceinem/dji_rs2_ros_controller](https://github.com/ceinem/dji_rs2_ros_controller)
 - [ArduPilot DJI RS2 mount driver](https://github.com/ArduPilot/ardupilot/blob/master/libraries/AP_Scripting/drivers/mount-djirs2-driver.lua)
 - [ConstantRobotics/DJIR_SDK](https://github.com/ConstantRobotics/DJIR_SDK)

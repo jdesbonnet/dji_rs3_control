@@ -51,6 +51,7 @@ class ProbeOptions:
     monitor: bool
     telemetry: bool
     dump_frames: bool
+    frame_filters: set[tuple[int, int]]
     log: Path | None
     waypoints: list[tuple[int, int, int]]
     track_mode: int
@@ -120,7 +121,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Protocol-oriented RS3 BLE probing tool.")
     parser.add_argument(
         "direction",
-        choices=["left", "right", "up", "down", "axis0", "axis1", "axis2", "recenter", "track", "raw"],
+        choices=["monitor", "left", "right", "up", "down", "axis0", "axis1", "axis2", "recenter", "track", "raw"],
     )
     parser.add_argument("--address", default=DEFAULT_ADDRESS)
     parser.add_argument("--delta", type=int, default=180, help="Signed joystick delta around the 1024 center point.")
@@ -134,6 +135,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--monitor", action="store_true")
     parser.add_argument("--telemetry", action="store_true")
     parser.add_argument("--dump-frames", action="store_true")
+    parser.add_argument(
+        "--filter",
+        action="append",
+        default=[],
+        metavar="SET/ID",
+        help="Only print matching command families in dump output, for example 04/66. Repeat as needed.",
+    )
     parser.add_argument("--log", type=Path)
     parser.add_argument(
         "--waypoint",
@@ -169,6 +177,13 @@ def parse_args(argv: list[str] | None = None) -> ProbeOptions:
         raw_payload = bytes.fromhex(args.raw_payload)
     except ValueError as exc:
         raise SystemExit("--raw-payload must be valid hex") from exc
+    frame_filters = set()
+    for value in args.filter:
+        try:
+            cmd_set_text, cmd_id_text = value.split("/", 1)
+            frame_filters.add((int(cmd_set_text, 16), int(cmd_id_text, 16)))
+        except ValueError as exc:
+            raise SystemExit("--filter must have form SET/ID, for example 04/66") from exc
 
     return ProbeOptions(
         direction=args.direction,
@@ -184,6 +199,7 @@ def parse_args(argv: list[str] | None = None) -> ProbeOptions:
         monitor=args.monitor,
         telemetry=args.telemetry,
         dump_frames=args.dump_frames,
+        frame_filters=frame_filters,
         log=args.log,
         waypoints=args.waypoint,
         track_mode=args.track_mode,
@@ -228,15 +244,17 @@ async def run_probe(options: ProbeOptions) -> None:
                     monitor=options.monitor,
                     telemetry=options.telemetry,
                     dump_frames=options.dump_frames,
+                    frame_filters=options.frame_filters,
                 ),
             )
             controller.emit(f"{controller.elapsed():8.3f}s subscribed {NOTIFY_CHAR}")
             try:
                 await run_sequence(controller, options, stop_event)
             finally:
-                for _ in range(max(3, options.post_neutral)):
-                    await controller.send_neutral(label="neutral-stop")
-                    await asyncio.sleep(0.1)
+                if options.direction != "monitor":
+                    for _ in range(max(3, options.post_neutral)):
+                        await controller.send_neutral(label="neutral-stop")
+                        await asyncio.sleep(0.1)
                 await client.stop_notify(NOTIFY_CHAR)
                 controller.emit(f"{controller.elapsed():8.3f}s stopped")
     finally:
@@ -271,6 +289,15 @@ async def run_sequence(controller: ProbeController, options: ProbeOptions, stop_
         keepalive_task = asyncio.create_task(keepalive_loop())
     if options.poll:
         poll_task = asyncio.create_task(poll_loop())
+
+    if options.direction == "monitor":
+        deadline = monotonic() + options.duration
+        while monotonic() < deadline and not stop_event.is_set():
+            await asyncio.sleep(0.1)
+        for task in (keepalive_task, poll_task):
+            if task is not None:
+                task.cancel()
+        return
 
     interval = 1.0 / options.rate
     for _ in range(options.pre_neutral):
@@ -336,7 +363,15 @@ async def run_sequence(controller: ProbeController, options: ProbeOptions, stop_
             task.cancel()
 
 
-def on_notify(controller: ProbeController, raw: bytes, *, monitor: bool, telemetry: bool, dump_frames: bool) -> None:
+def on_notify(
+    controller: ProbeController,
+    raw: bytes,
+    *,
+    monitor: bool,
+    telemetry: bool,
+    dump_frames: bool,
+    frame_filters: set[tuple[int, int]] | None = None,
+) -> None:
     if not monitor and not telemetry and not dump_frames:
         return
     for frame in iter_embedded_frames(raw):
@@ -349,7 +384,7 @@ def on_notify(controller: ProbeController, raw: bytes, *, monitor: bool, telemet
         payload = info["payload"]
         assert isinstance(payload, bytes)
 
-        if dump_frames:
+        if dump_frames and (not frame_filters or (cmd_set, cmd_id) in frame_filters):
             controller.emit(
                 f"{controller.elapsed():8.3f}s frame sender={int(info['sender']):02x} "
                 f"receiver={int(info['receiver']):02x} type={int(info['cmd_type']):02x} "
