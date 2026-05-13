@@ -23,8 +23,6 @@ const elements = {
   tilt: $("tilt-value"),
   roll: $("roll-value"),
   pan: $("pan-value"),
-  age: $("telemetry-age"),
-  poseRate: $("pose-rate"),
   connect: $("connect-button"),
   disconnect: $("disconnect-button"),
   stop: $("stop-button"),
@@ -57,7 +55,6 @@ const state = {
   transport: null,
   sequencer: new Sequencer(),
   telemetry: {},
-  poseSamples: [],
   connected: false,
   writeQueue: Promise.resolve(),
   joystick: {
@@ -119,9 +116,6 @@ function updateTelemetry(frame) {
 
   const nextTelemetry = telemetryFromFrame(frame, state.telemetry);
   if (nextTelemetry) {
-    if (nextTelemetry.poseTimestamp && nextTelemetry.poseTimestamp !== state.telemetry.poseTimestamp) {
-      recordPoseSample(nextTelemetry.poseTimestamp);
-    }
     state.telemetry = nextTelemetry;
     renderTelemetry();
     return;
@@ -133,7 +127,7 @@ function updateTelemetry(frame) {
 }
 
 function renderTelemetry() {
-  const { pose, batteryOrStatus, poseTimestamp } = state.telemetry;
+  const { pose, batteryOrStatus } = state.telemetry;
   if (pose) {
     elements.tilt.textContent = pose.tiltDeg.toFixed(1);
     elements.roll.textContent = pose.rollDeg.toFixed(1);
@@ -142,33 +136,6 @@ function renderTelemetry() {
   if (batteryOrStatus !== undefined) {
     elements.battery.textContent = String(batteryOrStatus);
   }
-  if (poseTimestamp) {
-    elements.age.textContent = `${((performance.now() - poseTimestamp) / 1000).toFixed(1)}s`;
-  }
-  elements.poseRate.textContent = formatPoseRate();
-}
-
-function recordPoseSample(timestamp) {
-  state.poseSamples.push(timestamp);
-  const cutoff = performance.now() - 3000;
-  while (state.poseSamples.length && state.poseSamples[0] < cutoff) {
-    state.poseSamples.shift();
-  }
-}
-
-function formatPoseRate() {
-  const cutoff = performance.now() - 3000;
-  while (state.poseSamples.length && state.poseSamples[0] < cutoff) {
-    state.poseSamples.shift();
-  }
-  if (state.poseSamples.length < 2) {
-    return "--";
-  }
-  const spanSeconds = (state.poseSamples[state.poseSamples.length - 1] - state.poseSamples[0]) / 1000;
-  if (spanSeconds <= 0) {
-    return "--";
-  }
-  return `${((state.poseSamples.length - 1) / spanSeconds).toFixed(1)} Hz`;
 }
 
 async function writeFrame(label, frame) {
@@ -220,7 +187,6 @@ async function connect() {
 
   try {
     await transport.connect({ address: elements.bleAddress.value.trim() });
-    state.poseSamples = [];
     logLine(`connected ${mode}`);
   } catch (error) {
     setStatus({ state: "error", message: error.message });
