@@ -6,7 +6,6 @@ import {
   buildNativeRateStopFrame,
   buildRecenterFrame,
   buildSleepFrame,
-  buildStatePollFrame,
   buildWakeFrame,
   bytesToHex,
   clamp,
@@ -25,6 +24,7 @@ const elements = {
   roll: $("roll-value"),
   pan: $("pan-value"),
   age: $("telemetry-age"),
+  poseRate: $("pose-rate"),
   connect: $("connect-button"),
   disconnect: $("disconnect-button"),
   stop: $("stop-button"),
@@ -57,13 +57,9 @@ const state = {
   transport: null,
   sequencer: new Sequencer(),
   telemetry: {},
+  poseSamples: [],
   connected: false,
   writeQueue: Promise.resolve(),
-  poll: {
-    timer: null,
-    payloadIndex: 0,
-    intervalMs: 500,
-  },
   joystick: {
     active: false,
     tilt: 0,
@@ -123,6 +119,9 @@ function updateTelemetry(frame) {
 
   const nextTelemetry = telemetryFromFrame(frame, state.telemetry);
   if (nextTelemetry) {
+    if (nextTelemetry.poseTimestamp && nextTelemetry.poseTimestamp !== state.telemetry.poseTimestamp) {
+      recordPoseSample(nextTelemetry.poseTimestamp);
+    }
     state.telemetry = nextTelemetry;
     renderTelemetry();
     return;
@@ -146,6 +145,30 @@ function renderTelemetry() {
   if (poseTimestamp) {
     elements.age.textContent = `${((performance.now() - poseTimestamp) / 1000).toFixed(1)}s`;
   }
+  elements.poseRate.textContent = formatPoseRate();
+}
+
+function recordPoseSample(timestamp) {
+  state.poseSamples.push(timestamp);
+  const cutoff = performance.now() - 3000;
+  while (state.poseSamples.length && state.poseSamples[0] < cutoff) {
+    state.poseSamples.shift();
+  }
+}
+
+function formatPoseRate() {
+  const cutoff = performance.now() - 3000;
+  while (state.poseSamples.length && state.poseSamples[0] < cutoff) {
+    state.poseSamples.shift();
+  }
+  if (state.poseSamples.length < 2) {
+    return "--";
+  }
+  const spanSeconds = (state.poseSamples[state.poseSamples.length - 1] - state.poseSamples[0]) / 1000;
+  if (spanSeconds <= 0) {
+    return "--";
+  }
+  return `${((state.poseSamples.length - 1) / spanSeconds).toFixed(1)} Hz`;
 }
 
 async function writeFrame(label, frame) {
@@ -197,7 +220,7 @@ async function connect() {
 
   try {
     await transport.connect({ address: elements.bleAddress.value.trim() });
-    startStatePolling();
+    state.poseSamples = [];
     logLine(`connected ${mode}`);
   } catch (error) {
     setStatus({ state: "error", message: error.message });
@@ -206,7 +229,6 @@ async function connect() {
 }
 
 async function disconnect() {
-  stopStatePolling();
   try {
     await sendStop();
   } catch (error) {
@@ -217,41 +239,6 @@ async function disconnect() {
   }
   state.transport = null;
   setConnected(false);
-}
-
-function startStatePolling() {
-  stopStatePolling();
-  state.poll.payloadIndex = 0;
-  const tick = async () => {
-    if (!state.connected || !state.transport) {
-      state.poll.timer = null;
-      return;
-    }
-    try {
-      await queueFrameWrite(
-        "state-poll",
-        buildStatePollFrame(state.sequencer.next(), state.poll.payloadIndex),
-        { log: false },
-      );
-      state.poll.payloadIndex += 1;
-    } catch (error) {
-      logLine(`state poll failed ${error.message}`);
-    } finally {
-      if (state.connected && state.transport) {
-        state.poll.timer = setTimeout(tick, state.poll.intervalMs);
-      } else {
-        state.poll.timer = null;
-      }
-    }
-  };
-  state.poll.timer = setTimeout(tick, 100);
-}
-
-function stopStatePolling() {
-  if (state.poll.timer) {
-    clearTimeout(state.poll.timer);
-    state.poll.timer = null;
-  }
 }
 
 async function sendGoto() {
@@ -413,12 +400,11 @@ elements.joystickPad.addEventListener("lostpointercapture", () => {
 });
 
 window.addEventListener("beforeunload", () => {
-  stopStatePolling();
   if (state.transport && state.connected) {
     const frame = buildNativeRateStopFrame(state.sequencer.next());
     state.transport.writeFrame(frame).catch(() => {});
   }
 });
 
-setInterval(renderTelemetry, 500);
+setInterval(renderTelemetry, 100);
 setConnected(false);
