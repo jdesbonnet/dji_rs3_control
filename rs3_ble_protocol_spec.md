@@ -244,19 +244,7 @@ Joystick commands are streamed while motion is requested. A controller should se
 2. repeated non-neutral frames while motion is held
 3. several neutral frames on release
 
-Recommended stream rate:
-
-```text
-5 Hz
-```
-
-Typical app-style deflection magnitudes:
-
-```text
-small test input     +/- 80 to +/- 120
-normal input         +/- 350 to +/- 400
-neutral              1024
-```
+Recommended stream rate in 5Hz.
 
 ### 5.5 Example Payloads
 
