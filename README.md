@@ -11,3 +11,4 @@ This protocol may apply to other DJI gimbals but since I only have a RS3 I canno
 
  * [DJI RS3 BLE protocol documentation](./rs3_ble_protocol_spec.md)
  * [DJI RS3 python control library](./python/README.md)
+ * [Pose stream reverse-engineering experiments](./experiments/pose_stream_experiments.md)
