@@ -857,7 +857,7 @@ f3      s32le
 tail    bytes
 ```
 
-`f0..f2` is believed to be the balancing current being consumed by axis0..2 gimbals. A well balanced gimbal will minimize these values.  `f3` is battery state of charge with 100% charge as indicated by the device LCD display to be 2702.
+`f0..f2` is believed to be the balancing current being consumed by axis0..2 gimbals. A well balanced gimbal will minimize these values. `f3` carries the battery state of charge; see section 7.4 for the raw-to-percent mapping.
 
 ### 7.3 Status Frame `0x04 / 0x66`
 
@@ -901,6 +901,56 @@ The `0x22`, `0x23`, and `0x24` fields change coherently during one-axis joystick
 For pan/yaw, tag `0x24` ranges from `-1800` to `+1800` over a full rotation (TODO: one of those values can't be inclusive because -180 is the same angle as +180). This indicates a scale of `0.1 degrees` per unit, with wrap at `+/-180 degrees`.
 
 The same `0.1 degrees` scale is believed to also apply to tag `0x22` and tag `0x23`. Unlike the pan gimbal, roll and tilt gimbals have a limited range of rotation.
+
+### 7.4 Battery State of Charge
+
+The fourth signed 32-bit field (`f3`) of the `0x0d/0x02` telemetry frame
+carries the battery state of charge. The raw value is not itself a
+percentage; it is an integer that scales approximately linearly with the
+percentage displayed on the device LCD.
+
+Paired observations of the LCD reading and the raw `f3` value on a single
+unit:
+
+| LCD % | raw `f3` |
+| ---: | ---: |
+| 61  | 1644 |
+| 64  | 1713 |
+| 66  | 1764 |
+| 69  | 1857 |
+| 73  | 1970 |
+| 75  | 2010 |
+| 77  | 2074 |
+| 80  | 2149 |
+| 81  | 2185 |
+| 85  | 2286 |
+| 92  | 2470 |
+| 96  | 2590 |
+| 100 | 2702 |
+
+Least-squares fit over these observations (R² = 0.9997):
+
+```text
+f3      ≈ 27.19 × percent − 22.57
+percent ≈ (f3 + 22.57) / 27.19
+```
+
+Caveats:
+
+- The relationship was only sampled over the `61..100 %` range. Behavior
+  near zero charge - whether the value clamps, becomes negative, or
+  follows a different curve as the cell voltage approaches the cutoff -
+  is unknown.
+- The constant `2702` (raw value at `100 %` on the tested unit) may be
+  firmware-fixed or battery-pack-specific. It has not been cross-checked
+  against other gimbals or battery packs.
+- The 32-bit signed encoding allows a much wider range than is exercised
+  in these observations, which all fit comfortably within 16 bits. The
+  field may carry a richer underlying quantity (mV, coulomb count) of
+  which the LCD percentage is only a rendering.
+
+Reference observations and a gnuplot script for visualizing the fit:
+[`battery.gp`](battery.gp).
 
 ## 8. Recommended Client Behavior
 
