@@ -220,12 +220,14 @@ Ordered by command code (`cmd_set` / `cmd_id`):
 | Command code | Sender | Receiver | Description |
 | --- | --- | --- | --- |
 | `0x04/0x01` | `0x02` | `0x04` | joystick control |
+| `0x04/0x08` | `0x02` | `0x04` | calibration trigger `[PARTIAL]` |
 | `0x04/0x0c` | `0x02` | `0x04` | native speed / rate control `[PARTIAL]` |
 | `0x04/0x0f` | `0x02` | `0x04` | sleep/wake control |
 | `0x04/0x10` | `0x02` | `0x04` | `[SPECULATIVE]` control keepalive / authority |
 | `0x04/0x12` | `0x02` | `0xe5` | `[SPECULATIVE]` status poll / telemetry configuration |
 | `0x04/0x14` | `0x02` | `0x04` | absolute angle control |
 | `0x04/0x27` | `0x04` | `0x02` | sleep status notification |
+| `0x04/0x30` | `0x04` | `0x02` | calibration progress notification `[PARTIAL]` |
 | `0x04/0x4c` | `0x02` | `0x04` | recenter to zero pose |
 | `0x04/0x62` | `0x02` | `0x04` | `[SPECULATIVE]` track waypoint program |
 | `0x04/0x63` | `0x02` | `0x04` | `[SPECULATIVE]` panorama program start |
@@ -638,6 +640,107 @@ payload    00000162
 
 The status payload changes while the track preview is running. Field layout is `[SPECULATIVE]`.
 
+### 6.11 Calibration Trigger Command `[PARTIAL]`
+
+The gimbal exposes a calibration entry point that, when activated, starts an
+autonomous multi-step calibration routine. **The routine moves the gimbal
+through a fixed sequence and cannot be cancelled mid-run from the BLE side.
+Treat `0x04/0x08` as a high-risk command and gate it behind explicit user
+intent.**
+
+Observed runs show that the routine completes successfully when no further
+BLE traffic is sent to the gimbal during the progress stream. A run that
+overlapped with rapid (~100 ms) follow-up traffic reported a failure status
+on the gimbal and required a power-cycle to recover. The current working
+hypothesis is that concurrent commands on the BLE link disrupt the
+calibration process; until this is verified, clients triggering this
+command should not send any other frames between `0x08` and the end of the
+`0x04/0x30` progress stream.
+
+```text
+sender     0x02
+receiver   0x04
+cmd_type   0x03
+cmd_set    0x04
+cmd_id     0x08
+payload    (empty)
+```
+
+Notable findings while characterizing this command:
+
+- The first calibration-progress frame (`0x04/0x30`) appears approximately
+  5.3 seconds after the trigger is sent.
+- `cmd_type=0x03` is described in DJI prior art as a "request / reply with
+  data" (query) type. On RS 3 BLE the gimbal nevertheless acts on this command:
+  `cmd_type` is **not** a reliable "this is a query, not a state change" guard
+  on the RS 3 firmware. Treat the `cmd_id` space as the source of truth and
+  rely on explicit allow/skip lists rather than `cmd_type` filtering.
+- An empty payload is sufficient to trigger the routine; no specific argument
+  was required in observed runs.
+
+### 6.12 Calibration Progress Notification `[PARTIAL]`
+
+During an active calibration run the gimbal emits a stream of progress
+frames at roughly 5 Hz:
+
+```text
+sender     0x04
+receiver   0x02
+cmd_type   0x00
+cmd_set    0x04
+cmd_id     0x30
+payload    2 bytes
+```
+
+The payload is interpreted as two bytes:
+
+```text
+offset  size  type   field
+0       1     u8     percent complete (0x00..0x64, i.e. 0..100)
+1       1     u8     in-progress flag (0x01 while running, 0x00 on completion)
+```
+
+A full successful run was captured from trigger to completion. The percent
+field walks from `0x00` to `0x64` over approximately 34 seconds, with each
+intermediate value repeated several times. The terminal frame on success has
+the in-progress flag cleared:
+
+```text
+0001 → 0% in progress
+0101 → 1% in progress
+...
+6301 → 99% in progress
+6400 → 100% complete    (terminal frame; in-progress flag now 0)
+```
+
+After the terminal `6400` frame, no further `0x04/0x30` frames are emitted
+and the gimbal returns to normal background telemetry. There is no separate
+result frame on another `cmd_set`/`cmd_id`; the success signal is the
+in-progress flag clearing on the terminal frame.
+
+On a successful run the gimbal's OLED display shows a "Success" popup with a
+Confirm button. Tapping Confirm produces no observable BLE traffic on any
+notification channel - it is a local UI acknowledgement only. Clients should
+treat the `0x04/0x30 6400` frame as the complete success signal and not wait
+for any post-completion event.
+
+One additional frame was observed mid-run during a successful capture:
+
+```text
+sender=0x04 type=0x00 set=0x04 id=0x08 payload=0501
+```
+
+This came from the gimbal at roughly 85% progress. It is the same
+`set/id` as the calibration trigger but emitted in the gimbal-to-host
+direction. Its meaning is `[SPECULATIVE]` - possibly a coarse phase
+indicator, or an internal subsystem ack. A single observation is not
+enough to characterize it.
+
+The failure terminal frame has not yet been captured cleanly. The one
+observed failed run was triggered during a brute scan that interrupted
+the routine with concurrent BLE traffic, and the operator stopped the
+capture before any terminal frame was logged. See [open items](#10-open-items).
+
 ## 7. Telemetry
 
 ### 7.1 Notification Transport
@@ -895,6 +998,11 @@ The following protocol details remain `[SPECULATIVE]`:
 - validate roll and tilt behavior for `0x04/0x0c`
 - characterize the `0x04/0x0c` control flag byte and speed-command timeout
 - determine whether `0x04/0x0a` implements related degree or rotate control
+- characterize the calibration failure terminal frame: a successful run ends
+  with `0x04/0x30 payload=6400`; the corresponding frame for a failed run has
+  not yet been captured cleanly
+- identify the meaning of the mid-run `0x04/0x08` frame emitted by the gimbal
+  during calibration (observed once at ~85% progress with `payload=0501`)
 
 ## 11. References
 
