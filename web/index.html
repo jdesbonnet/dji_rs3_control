@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RS3 Control</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <h1>RS3 Control</h1>
+          <p id="transport-summary">Disconnected</p>
+        </div>
+        <button id="stop-button" class="danger" type="button">Stop</button>
+      </header>
+
+      <section class="workspace">
+        <section class="panel connection-panel" aria-labelledby="connection-title">
+          <h2 id="connection-title">Connection</h2>
+          <div class="segmented" role="radiogroup" aria-label="Connection mode">
+            <label>
+              <input type="radio" name="mode" value="gateway" checked />
+              <span>Gateway</span>
+            </label>
+            <label>
+              <input type="radio" name="mode" value="ble" />
+              <span>Browser BLE</span>
+            </label>
+          </div>
+
+          <label class="field">
+            <span>Gateway URL</span>
+            <input id="gateway-url" value="ws://localhost:8765" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span>BLE address</span>
+            <input id="ble-address" value="48:1C:B9:DC:8B:99" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span>BLE service</span>
+            <input id="ble-service" value="0000fff0-0000-1000-8000-00805f9b34fb" autocomplete="off" />
+          </label>
+
+          <div class="button-row">
+            <button id="connect-button" type="button">Connect</button>
+            <button id="disconnect-button" type="button" disabled>Disconnect</button>
+          </div>
+        </section>
+
+        <section class="panel status-panel" aria-labelledby="status-title">
+          <h2 id="status-title">Status</h2>
+          <dl class="status-grid">
+            <div>
+              <dt>State</dt>
+              <dd id="connection-state">disconnected</dd>
+            </div>
+            <div>
+              <dt>Battery/status</dt>
+              <dd id="battery-value">--</dd>
+            </div>
+            <div>
+              <dt>Tilt</dt>
+              <dd id="tilt-value">--</dd>
+            </div>
+            <div>
+              <dt>Roll</dt>
+              <dd id="roll-value">--</dd>
+            </div>
+            <div>
+              <dt>Pan</dt>
+              <dd id="pan-value">--</dd>
+            </div>
+            <div>
+              <dt>Telemetry age</dt>
+              <dd id="telemetry-age">--</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="panel joystick-panel" aria-labelledby="joystick-title">
+          <h2 id="joystick-title">Joystick</h2>
+          <div id="joystick-pad" class="joystick-pad" tabindex="0" role="application" aria-label="Virtual joystick">
+            <div class="joystick-crosshair horizontal"></div>
+            <div class="joystick-crosshair vertical"></div>
+            <div id="joystick-stick" class="joystick-stick"></div>
+          </div>
+          <div class="readout-row">
+            <span>tilt <strong id="joy-tilt">0</strong></span>
+            <span>pan <strong id="joy-pan">0</strong></span>
+          </div>
+          <label class="field">
+            <span>Max joystick delta</span>
+            <input id="joystick-max" type="number" value="220" min="20" max="700" step="10" />
+          </label>
+        </section>
+
+        <section class="panel command-panel" aria-labelledby="goto-title">
+          <h2 id="goto-title">Go To</h2>
+          <div class="form-grid">
+            <label class="field">
+              <span>Tilt deg</span>
+              <input id="goto-tilt" type="number" value="0" step="0.1" />
+            </label>
+            <label class="field">
+              <span>Roll deg</span>
+              <input id="goto-roll" type="number" value="0" step="0.1" />
+            </label>
+            <label class="field">
+              <span>Pan deg</span>
+              <input id="goto-pan" type="number" value="0" step="0.1" />
+            </label>
+            <label class="field">
+              <span>Duration s</span>
+              <input id="goto-duration" type="number" value="2.0" min="0" max="25.5" step="0.1" />
+            </label>
+          </div>
+          <button id="goto-button" type="button">Go</button>
+
+          <h2>Rate</h2>
+          <div class="form-grid">
+            <label class="field">
+              <span>Tilt deg/s</span>
+              <input id="rate-tilt" type="number" value="0" step="0.1" />
+            </label>
+            <label class="field">
+              <span>Roll deg/s</span>
+              <input id="rate-roll" type="number" value="0" step="0.1" />
+            </label>
+            <label class="field">
+              <span>Pan deg/s</span>
+              <input id="rate-pan" type="number" value="20" step="0.1" />
+            </label>
+            <label class="field">
+              <span>Seconds</span>
+              <input id="rate-seconds" type="number" value="0.5" min="0" max="5" step="0.1" />
+            </label>
+          </div>
+          <button id="rate-button" type="button">Run Rate</button>
+        </section>
+
+        <section class="panel utility-panel" aria-labelledby="utility-title">
+          <h2 id="utility-title">Utilities</h2>
+          <div class="button-grid">
+            <button id="recenter-button" type="button">Recenter</button>
+            <button id="sleep-button" type="button">Sleep</button>
+            <button id="wake-button" type="button">Wake</button>
+          </div>
+        </section>
+
+        <section class="panel log-panel" aria-labelledby="log-title">
+          <div class="panel-heading">
+            <h2 id="log-title">Log</h2>
+            <button id="clear-log-button" type="button">Clear</button>
+          </div>
+          <pre id="log-output" aria-live="polite"></pre>
+        </section>
+      </section>
+    </main>
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>
