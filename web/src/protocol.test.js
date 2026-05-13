@@ -4,6 +4,7 @@ import {
   buildJoystickFrame,
   buildNativeRateFrame,
   buildNativeRateStopFrame,
+  buildStatePollFrame,
   bytesToHex,
   parseFrame,
 } from "./protocol.js";
@@ -35,5 +36,15 @@ assert.equal(parsed.cmdId, 0x14);
 assert.equal(parsed.payload.length, 8);
 assert.equal(parsed.crc16Ok, true);
 assert.equal(parsed.headerCrcOk, true);
+
+const pollFrame = buildStatePollFrame(0x5000);
+const parsedPoll = parseFrame(pollFrame);
+assert.equal(parsedPoll.receiver, 0xe5);
+assert.equal(parsedPoll.cmdType, 0x00);
+assert.equal(parsedPoll.cmdSet, 0x04);
+assert.equal(parsedPoll.cmdId, 0x12);
+assert.equal(parsedPoll.payload.length, 23);
+assert.equal(parsedPoll.crc16Ok, true);
+assert.equal(parsedPoll.headerCrcOk, true);
 
 console.log("protocol tests passed");

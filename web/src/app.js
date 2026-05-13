@@ -6,6 +6,7 @@ import {
   buildNativeRateStopFrame,
   buildRecenterFrame,
   buildSleepFrame,
+  buildStatePollFrame,
   buildWakeFrame,
   bytesToHex,
   clamp,
@@ -57,6 +58,12 @@ const state = {
   sequencer: new Sequencer(),
   telemetry: {},
   connected: false,
+  writeQueue: Promise.resolve(),
+  poll: {
+    timer: null,
+    payloadIndex: 0,
+    intervalMs: 500,
+  },
   joystick: {
     active: false,
     tilt: 0,
@@ -145,8 +152,21 @@ async function writeFrame(label, frame) {
   if (!state.transport || !state.connected) {
     throw new Error("not connected");
   }
-  await state.transport.writeFrame(frame);
-  logLine(`tx ${label} ${bytesToHex(frame)}`);
+  await queueFrameWrite(label, frame, { log: true });
+}
+
+async function queueFrameWrite(label, frame, { log = true } = {}) {
+  const write = async () => {
+    if (!state.transport || !state.connected) {
+      throw new Error("not connected");
+    }
+    await state.transport.writeFrame(frame);
+    if (log) {
+      logLine(`tx ${label} ${bytesToHex(frame)}`);
+    }
+  };
+  state.writeQueue = state.writeQueue.then(write, write);
+  return state.writeQueue;
 }
 
 async function sendStop() {
@@ -177,6 +197,7 @@ async function connect() {
 
   try {
     await transport.connect({ address: elements.bleAddress.value.trim() });
+    startStatePolling();
     logLine(`connected ${mode}`);
   } catch (error) {
     setStatus({ state: "error", message: error.message });
@@ -185,6 +206,7 @@ async function connect() {
 }
 
 async function disconnect() {
+  stopStatePolling();
   try {
     await sendStop();
   } catch (error) {
@@ -195,6 +217,41 @@ async function disconnect() {
   }
   state.transport = null;
   setConnected(false);
+}
+
+function startStatePolling() {
+  stopStatePolling();
+  state.poll.payloadIndex = 0;
+  const tick = async () => {
+    if (!state.connected || !state.transport) {
+      state.poll.timer = null;
+      return;
+    }
+    try {
+      await queueFrameWrite(
+        "state-poll",
+        buildStatePollFrame(state.sequencer.next(), state.poll.payloadIndex),
+        { log: false },
+      );
+      state.poll.payloadIndex += 1;
+    } catch (error) {
+      logLine(`state poll failed ${error.message}`);
+    } finally {
+      if (state.connected && state.transport) {
+        state.poll.timer = setTimeout(tick, state.poll.intervalMs);
+      } else {
+        state.poll.timer = null;
+      }
+    }
+  };
+  state.poll.timer = setTimeout(tick, 100);
+}
+
+function stopStatePolling() {
+  if (state.poll.timer) {
+    clearTimeout(state.poll.timer);
+    state.poll.timer = null;
+  }
 }
 
 async function sendGoto() {
@@ -356,6 +413,7 @@ elements.joystickPad.addEventListener("lostpointercapture", () => {
 });
 
 window.addEventListener("beforeunload", () => {
+  stopStatePolling();
   if (state.transport && state.connected) {
     const frame = buildNativeRateStopFrame(state.sequencer.next());
     state.transport.writeFrame(frame).catch(() => {});

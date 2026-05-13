@@ -209,6 +209,17 @@ export function buildAbsoluteAngleFrame(
   return buildFrame({ receiver: 0x04, sequence, cmdSet: 0x04, cmdId: 0x14, payload });
 }
 
+export const APP_STATE_POLL_PAYLOADS = [
+  hexToBytes("660cc01d108401000e000c000050000000000000000010"),
+  hexToBytes("660cc01d103e010000000c000050"),
+  hexToBytes("6624c01d00001c1051010000000c00005000f103"),
+];
+
+export function buildStatePollFrame(sequence, payloadIndex = 0) {
+  const payload = APP_STATE_POLL_PAYLOADS[Math.min(payloadIndex, APP_STATE_POLL_PAYLOADS.length - 1)];
+  return buildFrame({ receiver: 0xe5, sequence, cmdType: 0x00, cmdSet: 0x04, cmdId: 0x12, payload });
+}
+
 export function buildRecenterFrame(sequence) {
   return buildFrame({ receiver: 0x04, sequence, cmdSet: 0x04, cmdId: 0x4c, payload: [0xfe, 0x01] });
 }
