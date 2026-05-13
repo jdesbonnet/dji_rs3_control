@@ -78,6 +78,67 @@ sequenceDiagram
     C->>G: BLE disconnect
 ```
 
+### 2.4 App Initialization Sequence `[PARTIAL]`
+
+A passive BLE capture of the official Ronin app shows a fixed sequence of
+18 DUML frames sent immediately after connection, before any user-initiated
+control input. Whether the full sequence is *required* for the gimbal to
+accept control commands has not been verified empirically: the library in
+this repository successfully sends joystick, goto, sleep/wake, and recenter
+commands without first running it. The sequence is documented here as
+captured, for reverse-engineering reference.
+
+All 18 frames are sent from sender `0x02` with `cmd_type = 0x40`. Sender,
+cmd_type, and an empty payload (where applicable) are omitted from the
+table below.
+
+| # | receiver | cmd_set | cmd_id | payload |
+| --- | --- | --- | --- | --- |
+| 1  | `0x04` | `0x00` | `0x01` | (empty) |
+| 2  | `0x04` | `0x00` | `0x01` | (empty) |
+| 3  | `0xe5` | `0x0d` | `0x01` | `000000000000000000` |
+| 4  | `0x27` | `0x07` | `0x0e` | (empty) |
+| 5  | `0x27` | `0x00` | `0x01` | (empty) |
+| 6  | `0xe5` | `0x00` | `0x4f` | `0100000000ffffffff` |
+| 7  | `0xe5` | `0x00` | `0x32` | `11` |
+| 8  | `0xe5` | `0x00` | `0x32` | `11` |
+| 9  | `0xe5` | `0x00` | `0x4f` | `0100010000ffffffff` |
+| 10 | `0x04` | `0x00` | `0x01` | (empty) |
+| 11 | `0x44` | `0x00` | `0x01` | (empty) |
+| 12 | `0xe5` | `0x00` | `0x4f` | `0100020000ffffffff` |
+| 13 | `0xe5` | `0x00` | `0x01` | (empty) |
+| 14 | `0x26` | `0x00` | `0x01` | (empty) |
+| 15 | `0x27` | `0x07` | `0x07` | (empty) |
+| 16 | `0xbf` | `0x00` | `0x01` | (empty) |
+| 17 | `0x0b` | `0x00` | `0x01` | (empty) |
+| 18 | `0x32` | `0x00` | `0x01` | (empty) |
+
+Captured frame-to-frame spacing is approximately 50 ms. After the sequence
+completes the app begins polling telemetry via `0x04/0x12` commands; see
+section 6.6 for poll payloads.
+
+Patterns visible in the table:
+
+- `cmd_set=0x00 cmd_id=0x01` is sent to eight different endpoint addresses
+  (`0x04, 0x27, 0xe5, 0x44, 0x26, 0xbf, 0x0b, 0x32`). This is consistent
+  with an identify-style ping; receivers that exist respond, others do not.
+- `0xe5/0x00/0x4f` is sent three times with payloads that differ in one byte
+  only (`...000000...`, `...000100...`, `...000200...`). The varying byte
+  likely indexes a configuration slot or capability set.
+- Frames 4 and 15 (`0x27/0x07/0x0e` and `0x27/0x07/0x07`) target the same
+  subsystem with command set `0x07`. The function of cmd_set `0x07` on
+  endpoint `0x27` is `[SPECULATIVE]`.
+
+The reference implementation of this sequence is `APP_INIT_COMMANDS`, and
+the matching telemetry poll payloads are `APP_POLL_PAYLOADS`, both in
+[`python/rs3/protocol/commands.py`](python/rs3/protocol/commands.py).
+
+> [!CAUTION]
+> The function of every frame in this sequence has not been characterized,
+> and the minimal-required subset has not been identified. Clients that do
+> not need full app parity should skip this sequence entirely - basic
+> control commands work without it.
+
 ## 3. DUML Frame Format
 
 ### 3.1 Packet Layout
@@ -168,23 +229,48 @@ For the frames described here, byte `2` is normally `0x04`, corresponding to DUM
 
 ### 3.3 Header CRC8
 
-The header CRC is calculated over bytes `0..2`:
+The header CRC is calculated over bytes `0..2` (start, length-low,
+version/length-high) and stored as the single byte at offset `3`.
 
 ```text
+algorithm              right-shift CRC-8, reflected
+polynomial (reflected) 0x8C       used by the implementation directly
+polynomial (forward)   0x31       bit-reverse of 0x8C
 initial value          0x77
-reflected polynomial   0x31
-covered bytes          start, length low, version/length high
+final XOR              none
 ```
+
+This uses the same polynomial as the Maxim / 1-Wire CRC-8 family
+(`CRC-8/MAXIM-DOW`), but with a non-zero initial value of `0x77`. As a
+consequence, it does not match any standard named CRC-8 in tools such as
+[crccalc.com](https://crccalc.com/) and must be implemented as a custom
+variant.
+
+Reference implementation: `crc8()` in
+[`python/rs3/protocol/duml.py`](python/rs3/protocol/duml.py).
 
 ### 3.4 Frame CRC16
 
-The frame CRC is calculated over the complete frame excluding the final two CRC bytes:
+The frame CRC is calculated over the complete frame excluding the final
+two CRC bytes, and is stored little-endian as the trailing two bytes.
 
 ```text
+algorithm              right-shift CRC-16, reflected
+polynomial (reflected) 0x8408     used by the implementation directly
+polynomial (forward)   0x1021     bit-reverse of 0x8408 (CCITT)
 initial value          0x3692
-reflected polynomial   CCITT 0x1021
-byte order             little-endian
+final XOR              none
+byte order             little-endian on the wire (low byte first)
 ```
+
+This uses the CCITT polynomial that underlies `CRC-16/KERMIT`,
+`CRC-16/X-25`, and several other named CRC-16 variants. The initial value
+`0x3692` is non-standard, so the algorithm does not match any named CRC-16
+in tools such as [crccalc.com](https://crccalc.com/) and must be
+implemented as a custom variant.
+
+Reference implementation: `crc16()` in
+[`python/rs3/protocol/duml.py`](python/rs3/protocol/duml.py).
 
 ## 4. Endpoints and Command Types
 
