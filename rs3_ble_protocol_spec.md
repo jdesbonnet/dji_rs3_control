@@ -172,15 +172,7 @@ The following endpoint IDs are used by the control protocol:
 ```
 
 Additional subsystem endpoint IDs whos function is unknown include:
-
-```text
-0x0b
-0x26
-0x27
-0x32
-0x44
-0xbf
-```
+0x0b, 0x26, 0x27, 0x32, 0x44, 0xbf.
 
 ### 4.2 Command Type
 
