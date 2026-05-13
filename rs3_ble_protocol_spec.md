@@ -2,7 +2,7 @@
 
 Author: Joe Desbonnet (with aid of gpt-5.4 and gpt-5.5 models)
 
-Last edit:   2026-05-12
+Last edit:   2026-05-13
 
 ## 1. Overview
 
@@ -50,6 +50,56 @@ gimbal -> client   ATT Handle Value Notification from fff4
 ```
 
 Application payloads are DUML frames. A single BLE notification may contain one DUML frame or multiple concatenated DUML frames.
+
+### 2.3 Typical Session Sequence
+
+The following diagram shows the typical interaction pattern. Command details are
+defined in later sections; this is intended to show ordering and direction of
+traffic.
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant G as RS3 gimbal
+
+    C->>G: BLE connect
+    C->>G: Subscribe to fff4 notifications
+    G-->>C: Notifications enabled
+
+    opt App-style initialization [SPECULATIVE]
+        C->>G: 0x04/0x10 keepalive / control authority
+        G-->>C: 0x04/0x10 ACK
+        C->>G: 0x04/0x12 status poll / telemetry config
+    end
+
+    par Background telemetry
+        loop while connected
+            G-->>C: 0x04/0x66 pose/status telemetry
+            G-->>C: 0x0d/0x02 status telemetry [PARTIAL]
+        end
+    and Command path
+        alt Joystick control
+            C->>G: several neutral 0x04/0x01 frames
+            loop while motion is requested
+                C->>G: 0x04/0x01 axis deflection frames
+            end
+            C->>G: several neutral 0x04/0x01 frames
+        else Native rate or absolute angle control
+            C->>G: 0x04/0x0c speed or 0x04/0x14 absolute angle
+            G-->>C: ACK for command
+            C->>G: 0x04/0x0c zero/release if speed control was used
+        else Autonomous track / panorama program
+            C->>G: 0x04/0x62 track or 0x04/0x63 panorama command
+            loop while program runs
+                G-->>C: progress/status notification
+                C->>G: progress ACK when required
+            end
+        end
+    end
+
+    C->>G: final neutral / release frames
+    C->>G: BLE disconnect
+```
 
 ## 3. DUML Frame Format
 
